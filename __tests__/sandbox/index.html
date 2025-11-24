@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Manager Sandbox</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/extjs/6.2.0/ext-all.js"></script>
+</head>
+<body>
+    Nothing to see here. Just open the Developer Tools.
+</body>
+<script type="module">
+    import RequestManager from '../../index.js';
+    const requestManager = new RequestManager({ verbose: false });
+    const url = 'https://httpbin.org/get';
+    console.log('Starting requests...');
+
+    // Using fetch()
+    requestManager.fetch(url)
+
+    // Using axios()
+    requestManager.axios(url)
+
+    // Using ajax() with jQuery and Ext.Ajax
+    requestManager.ajax($.ajax, url)
+    requestManager.ajax(({ url }) => Ext.Ajax.request({ url: url }), url)
+    requestManager.ajax(Ext.Ajax.request.bind(Ext.Ajax), url)
+
+    // Using xhr() with XMLHttpRequest
+    requestManager.xhr(url)
+
+    // **
+    // * These methods are not recommended in case previous solutions are not suitable for you.
+    // * With these examples you can figure out how to use the requestManager with different HTTP libraries.
+    // **
+
+    // ** Using request() with Function **
+    /// Fetch example (Not recommended, use fetch() instead)
+    /// This method requires to pass the signal to the fetch function.
+    setTimeout(() => {
+        requestManager.request(url, ({ options }) => {
+            return fetch(url, { signal: options.signal, ...options });
+        })
+    }, 100);
+    /// Axios example (Not recommended, use axios() instead)
+    /// Note: axios needs cancelToken, not signal.
+    setTimeout(() => {
+        const CancelToken = axios.CancelToken.source();
+        requestManager.request(url, ({ options }) => {
+            return axios.get(url, { cancelToken: options.cancelToken, ...options });
+        }, {
+            cancelToken: CancelToken
+        })
+    }, 200);
+    /// jQuery example (Not recommended, use ajax() instead)
+    /// This method requires to pass the abort method, which is not easy to read and remember.
+    setTimeout(() => {
+        requestManager.request(url, ({ options }) => {
+            const req = $.ajax({ url, ...options });
+            requestManager.addAbortListener(req.abort, options.signal);
+            return req;
+        })
+    }, 300);
+    /// Ext.Ajax example (Not recommended, use ajax() instead)
+    setTimeout(() => {
+        requestManager.request(url, ({ options }) => {
+            const req = Ext.Ajax.request({ url: url, ...options });
+            requestManager.addAbortListener(req.abort, options.signal);
+            return req;
+        })
+    }, 400);
+    
+    // ** Using request() with Promise **
+    /// Fetch example (Not recommended, use fetch() instead)
+    /// This method requires to pass the signal and abortController to the fetch function, which is not easy to read and remember.
+    setTimeout(() => {
+        const abortController = new AbortController();
+        requestManager.request(url, fetch(url, { signal: abortController.signal }), { abortController: abortController })
+    }, 500);
+    /// Axios example (Not recommended, use axios() instead)
+    /// This method requires to pass the cancelToken and abortController to the axios function, which is not easy to read and remember.
+    setTimeout(() => {
+        const CancelToken = axios.CancelToken.source();
+        requestManager.request(url, axios.get(url, { cancelToken: CancelToken.token }), {
+            cancelToken: CancelToken
+        });
+    }, 600);
+    /// jQuery example (Not recommended, use ajax() instead)
+    /// This method requires to pass the abort method and abortController, which is not easy to read and remember.
+    setTimeout(() => {
+        const abortController = new AbortController();
+        const req = $.ajax({ url });
+        requestManager.addAbortListener(req.abort, abortController.signal);
+        requestManager.request(url, req, { abortController: abortController });
+    }, 700);
+    /// Ext.Ajax example (Not recommended, use ajax() instead)
+    /// This method requires to pass the abort method and abortController, which is not easy to read and remember.
+    setTimeout(() => {
+        const req = Ext.Ajax.request({ url: url });
+        const abortController = new AbortController();
+        requestManager.addAbortListener(req.abort, abortController.signal);
+        requestManager.request(url, req);
+    }, 800);
+</script>
+</html>
