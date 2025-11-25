@@ -1,9 +1,6 @@
 import terser from '@rollup/plugin-terser';
 
-const banner = `/**
- * RequestManager - A library for managing and regulating HTTP requests efficiently.
- * @license MIT
- */`;
+const banner = ``;
 
 export default [
     // ESM build

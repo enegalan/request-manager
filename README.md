@@ -1,6 +1,6 @@
-# request-manager
+# @enegalan/request-manager
 
-[![npm version](https://img.shields.io/npm/v/request-manager.svg)](https://www.npmjs.com/package/request-manager)
+[![npm version](https://img.shields.io/npm/v/@enegalan/request-manager.svg)](https://www.npmjs.com/package/@enegalan/request-manager)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 RequestManager is a JavaScript library designed to manage and regulate HTTP requests efficiently. It allows you to use HTTP calls from any library (ajax, Ext.Ajax, axios, fetch, etc.) by accepting Promises as parameters.
@@ -18,28 +18,28 @@ RequestManager is a JavaScript library designed to manage and regulate HTTP requ
 ## Installation
 
 ```bash
-npm install request-manager
+npm install @enegalan/request-manager
 ```
 
 ### Usage in Different Environments
 
 **ES Modules (recommended):**
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 ```
 
 **CommonJS:**
 ```javascript
-const { RequestManager } = require('request-manager');
+const { RequestManager } = require('@enegalan/request-manager');
 ```
 
 **Browser (CDN):**
 ```html
 <!-- Using unpkg -->
-<script src="https://unpkg.com/request-manager/dist/request-manager.min.js"></script>
+<script src="https://unpkg.com/@enegalan/request-manager/dist/request-manager.min.js"></script>
 
 <!-- Or using jsDelivr -->
-<script src="https://cdn.jsdelivr.net/npm/request-manager/dist/request-manager.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@enegalan/request-manager/dist/request-manager.min.js"></script>
 
 <script>
   const requestManager = new RequestManager();
@@ -51,7 +51,7 @@ const { RequestManager } = require('request-manager');
 Full TypeScript support is included. Types are automatically resolved:
 
 ```typescript
-import RequestManager, { RequestOptions, XhrResponse } from 'request-manager';
+import RequestManager, { RequestOptions, XhrResponse } from '@enegalan/request-manager';
 
 const requestManager = new RequestManager({ verbose: true });
 
@@ -65,7 +65,7 @@ const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/
 ### Basic Example with fetch()
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -85,7 +85,7 @@ requestManager.fetch('/api/users')
 ### POST Request with Options
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -102,7 +102,7 @@ requestManager.fetch('/api/users', {
 ### Using request() with Promise
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -116,7 +116,7 @@ requestManager.request('/api/users', fetch('/api/users'))
 ### Using request() with Function
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -132,7 +132,7 @@ requestManager.request('/api/users', ({ options }) => {
 ### Automatic Cancellation with Same URL
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -155,7 +155,7 @@ setTimeout(() => {
 ### Using requestKey to Override URL-based ID
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -180,7 +180,7 @@ setTimeout(() => {
 ### Using requestKey with Function
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -199,7 +199,7 @@ searchUsers('test'); // This will cancel the previous one
 ### Using noCancel to Allow Concurrent Requests
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -225,7 +225,7 @@ requestManager.fetch('/api/lazy?load=3', { noCancel: true })
 
 ```javascript
 import axios from 'axios';
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -253,7 +253,7 @@ requestManager.request('/api/users', axios.get('/api/users', {
 
 ```javascript
 import axios from 'axios';
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -276,7 +276,7 @@ requestManager.request('/api/users', ({ options }) => {
 ### Using with Other Libraries
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -304,7 +304,7 @@ requestManager.request('/api/data', ({ options }) => {
 ### Using with Pre-created Promises
 
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -390,7 +390,7 @@ Executes an HTTP request using axios, cancelling any previous request with the s
 **Example:**
 ```javascript
 import axios from 'axios';
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -436,7 +436,7 @@ Executes an HTTP request using a custom ajax method function, cancelling any pre
 
 **Example:**
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
@@ -489,7 +489,7 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
 
 **Example:**
 ```javascript
-import RequestManager from 'request-manager';
+import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
