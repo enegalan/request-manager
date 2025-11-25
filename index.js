@@ -430,9 +430,9 @@ class RequestManager {
         const requestOptions = options || {};
         const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
         try {
-            const wrappedAjaxMethod = ({ options: fetchOptions }) => ajaxMethod({ url, ...fetchOptions });
-            this.addAbortListener(wrappedAjaxMethod.abort, this.getSignal());
-            return this.#_request(requestId, wrappedAjaxMethod, requestOptions);
+            const req = ajaxMethod({ url, ...requestOptions });
+            this.addAbortListener(req.abort, this.getSignal());
+            return this.#_request(requestId, req, requestOptions);
         } catch (error) {
             return Promise.reject(error);
         }
