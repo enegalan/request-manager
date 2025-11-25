@@ -1,5 +1,8 @@
 # request-manager
 
+[![npm version](https://img.shields.io/npm/v/request-manager.svg)](https://www.npmjs.com/package/request-manager)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 RequestManager is a JavaScript library designed to manage and regulate HTTP requests efficiently. It allows you to use HTTP calls from any library (ajax, Ext.Ajax, axios, fetch, etc.) by accepting Promises as parameters.
 
 ## Key Features
@@ -8,12 +11,53 @@ RequestManager is a JavaScript library designed to manage and regulate HTTP requ
 - **Automatic Cancellation**: When a request is repeated with the same identifier, the previous request is automatically cancelled
 - **Prioritizes Recent Requests**: The library ensures that only the most recent request is processed, cancelling older ones
 - **Simple API**: Easy to use and integrate into existing projects
-- **Adapt to your requirements**: The library supports `options` for custom request management.
+- **Adapt to your requirements**: The library supports `options` for custom request management
+- **TypeScript Support**: Full TypeScript type definitions included
+- **Multiple Module Formats**: ESM, CommonJS, and UMD builds available
 
 ## Installation
 
 ```bash
 npm install request-manager
+```
+
+### Usage in Different Environments
+
+**ES Modules (recommended):**
+```javascript
+import RequestManager from 'request-manager';
+```
+
+**CommonJS:**
+```javascript
+const { RequestManager } = require('request-manager');
+```
+
+**Browser (CDN):**
+```html
+<!-- Using unpkg -->
+<script src="https://unpkg.com/request-manager/dist/request-manager.min.js"></script>
+
+<!-- Or using jsDelivr -->
+<script src="https://cdn.jsdelivr.net/npm/request-manager/dist/request-manager.min.js"></script>
+
+<script>
+  const requestManager = new RequestManager();
+</script>
+```
+
+### TypeScript
+
+Full TypeScript support is included. Types are automatically resolved:
+
+```typescript
+import RequestManager, { RequestOptions, XhrResponse } from 'request-manager';
+
+const requestManager = new RequestManager({ verbose: true });
+
+// Types are automatically inferred
+const response: Response = await requestManager.fetch('/api/users');
+const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/user/1');
 ```
 
 ## Usage
@@ -285,7 +329,7 @@ Creates a new RequestManager instance.
 
 **Parameters:**
 - `options` (Object, optional): Configuration options
-  - `verbose` (boolean, optional): If true, cancellation errors will include messages globally for all requests. Can be overridden per-request.
+  - `verbose` (boolean, optional): If true, cancellation errors will include messages globally for all requests.
 
 **Example:**
 ```javascript
@@ -304,7 +348,6 @@ Executes an HTTP request, cancelling any previous request with the same identifi
   - `abortController` (AbortController): AbortController instance (created automatically if not provided)
   - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
   - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will share the same ID and cancel previous ones. If not provided, the cleaned URL is used as the key. Can be a string, number, or function that returns a key.
-  - `verbose` (boolean): If true, cancellation errors will include messages
   - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests. Useful for lazy loading scenarios where multiple requests should execute in parallel.
 
 **Returns:** Promise that resolves/rejects based on the most recent request
@@ -321,7 +364,6 @@ Executes an HTTP request using fetch, cancelling any previous request with the s
   - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If not provided, the cleaned URL is used as the key.
   - `abortController` (AbortController): AbortController instance (created automatically if not provided)
   - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
-  - `verbose` (boolean): If true, cancellation errors will include messages
   - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
   - Any other properties are passed as fetch options (method, headers, body, etc.)
 
@@ -329,7 +371,7 @@ Executes an HTTP request using fetch, cancelling any previous request with the s
 
 **Note:** This is a convenience method that internally calls `request()` with the URL as the requestPromise. The request ID is automatically generated from the cleaned URL unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request.
 
-### `axios(url, options)`
+### `axios(url, options, axiosInstance)`
 
 Executes an HTTP request using axios, cancelling any previous request with the same identifier.
 
@@ -339,6 +381,7 @@ Executes an HTTP request using axios, cancelling any previous request with the s
   - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
   - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
   - Any other properties are passed as axios options (method, headers, params, data, etc.)
+- `axiosInstance` (Object, optional): Custom axios instance to use. If not provided, uses the global `axios` object.
 
 **Returns:** Promise that resolves/rejects based on the most recent request
 
@@ -351,10 +394,19 @@ import RequestManager from 'request-manager';
 
 const requestManager = new RequestManager();
 
-// Simple GET request
+// Simple GET request (uses global axios)
 requestManager.axios('/api/users')
   .then(response => console.log(response.data))
   .catch(error => console.error(error));
+
+// With custom axios instance
+const apiClient = axios.create({
+  baseURL: 'https://api.example.com',
+  timeout: 5000
+});
+
+requestManager.axios('/users', {}, apiClient)
+  .then(response => console.log(response.data));
 
 // POST request with options
 requestManager.axios('/api/users', {
@@ -516,11 +568,28 @@ requestManager.request('/api/users', fetch('/api/users', { signal: abortControll
 
 ### `getOptions()`
 
-Gets the options for the current request. This method returns the options that were set for the most recent request. Note that options are flushed after the request is completed.
+Gets the manager options that were passed to the constructor or set via `setOptions`.
 
-**Returns:** Object containing the options for the current request
+**Returns:** Object containing the manager options
 
-**Note:** This method is primarily for internal use. Options are automatically flushed after each request completes.
+### `setOptions(options)`
+
+Sets the manager options.
+
+**Parameters:**
+- `options` (Object): Configuration options
+  - `verbose` (boolean, optional): If true, cancellation errors will include messages
+
+**Example:**
+```javascript
+const requestManager = new RequestManager();
+
+// Enable verbose mode at runtime
+requestManager.setOptions({ verbose: true });
+
+// Disable verbose mode
+requestManager.setOptions({ verbose: false });
+```
 
 ### `addAbortListener(abortMethod, signal)`
 

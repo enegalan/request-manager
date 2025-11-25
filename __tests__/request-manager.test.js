@@ -1,4 +1,4 @@
-import RequestManager from '../index.js';
+import RequestManager from '../main.js';
 
 // Helper function to generate request ID (replicates private #_generateRequestId logic)
 function generateRequestId(url, requestKey = null) {
@@ -334,13 +334,15 @@ describe('RequestManager', () => {
             expect(errorMessage).toBe('Request was cancelled');
         });
 
-        test('should reject wrapper promise when verbose is true per-request', async () => {
+        test('should reject wrapper promise when verbose is enabled via setOptions', async () => {
             const controller = new AbortController();
             const promise = new Promise(() => {}); // Never resolves
 
-            const requestPromise = requestManager.request('/api/verbose-per-request-test', promise, {
-                abortController: controller,
-                verbose: true
+            // Enable verbose via setOptions
+            requestManager.setOptions({ verbose: true });
+
+            const requestPromise = requestManager.request('/api/verbose-setmanageroptions-test', promise, {
+                abortController: controller
             });
 
             let errorMessage = null;
@@ -348,23 +350,28 @@ describe('RequestManager', () => {
                 errorMessage = error.message;
             });
 
-            const requestId = generateRequestId('/api/verbose-per-request-test');
+            const requestId = generateRequestId('/api/verbose-setmanageroptions-test');
             requestManager.cancel(requestId);
             
             // Wait a bit for the rejection
             await new Promise(resolve => setTimeout(resolve, 10));
             
             expect(errorMessage).toBe('Request was cancelled');
+
+            // Reset verbose
+            requestManager.setOptions({ verbose: false });
         });
 
-        test('should allow per-request verbose to override global verbose', async () => {
+        test('should allow changing verbose mode at runtime via setOptions', async () => {
             const verboseManager = new RequestManager({ verbose: true });
             const controller = new AbortController();
             const promise = new Promise(() => {}); // Never resolves
 
-            const requestPromise = verboseManager.request('/api/verbose-override-test', promise, {
-                abortController: controller,
-                verbose: false
+            // Disable verbose via setOptions
+            verboseManager.setOptions({ verbose: false });
+
+            const requestPromise = verboseManager.request('/api/verbose-runtime-test', promise, {
+                abortController: controller
             });
 
             let rejected = false;
@@ -372,14 +379,23 @@ describe('RequestManager', () => {
                 rejected = true;
             });
 
-            const requestId = generateRequestId('/api/verbose-override-test');
+            const requestId = generateRequestId('/api/verbose-runtime-test');
             verboseManager.cancel(requestId);
             
             // Wait a bit to see if rejection happens
             await new Promise(resolve => setTimeout(resolve, 10));
             
-            // With verbose false per-request, should override global verbose true
+            // With verbose disabled via setOptions, should not reject
             expect(rejected).toBe(false);
+        });
+
+        test('setOptions should update managerOptions', () => {
+            const manager = new RequestManager();
+            expect(manager.getOptions()).toEqual({});
+            
+            manager.setOptions({ verbose: true });
+            expect(manager.getOptions()).toEqual({ verbose: true });
+            expect(manager.verbose).toBe(true);
         });
     });
 
@@ -1020,6 +1036,49 @@ describe('RequestManager', () => {
 
             expect(result.data).toBe('second');
         });
+
+        test('should use custom axios instance when provided as third parameter', async () => {
+            let customAxiosCalled = false;
+            let customAxiosArgs = null;
+            
+            const customAxiosInstance = {
+                CancelToken: {
+                    source: () => {
+                        return {
+                            token: 'custom-token',
+                            cancel: () => {}
+                        };
+                    }
+                },
+                get: (url, options) => {
+                    customAxiosCalled = true;
+                    customAxiosArgs = { url, options };
+                    return Promise.resolve({ data: 'custom-success', status: 200 });
+                }
+            };
+
+            const result = await requestManager.axios('/api/users', {}, customAxiosInstance);
+
+            expect(customAxiosCalled).toBe(true);
+            expect(axiosGetCalled).toBe(false); // Global axios should not be called
+            expect(customAxiosArgs.url).toBe('/api/users');
+            expect(customAxiosArgs.options.cancelToken).toBe('custom-token');
+            expect(result.data).toBe('custom-success');
+        });
+
+        test('should use global axios when axiosInstance is null', async () => {
+            const result = await requestManager.axios('/api/users', {}, null);
+
+            expect(axiosGetCalled).toBe(true);
+            expect(result.data).toBe('success');
+        });
+
+        test('should use global axios when axiosInstance is not provided', async () => {
+            const result = await requestManager.axios('/api/users');
+
+            expect(axiosGetCalled).toBe(true);
+            expect(result.data).toBe('success');
+        });
     });
 
     describe('ajax() method', () => {
@@ -1031,19 +1090,20 @@ describe('RequestManager', () => {
 
         test('should execute an ajax request with function', async () => {
             let ajaxCalled = false;
-            let ajaxOptions = null;
+            let ajaxUrl = null;
 
             const ajaxMethod = ({ url, ...options }) => {
                 ajaxCalled = true;
-                ajaxOptions = options;
-                return Promise.resolve({ data: 'success' });
+                ajaxUrl = url;
+                const promise = Promise.resolve({ data: 'success' });
+                promise.abort = () => {}; // Mock abort method
+                return promise;
             };
 
             const result = await requestManager.ajax(ajaxMethod, '/api/users');
 
             expect(ajaxCalled).toBe(true);
-            expect(ajaxOptions).toBeDefined();
-            expect(ajaxOptions.signal).toBeInstanceOf(AbortSignal);
+            expect(ajaxUrl).toBe('/api/users');
             expect(result.data).toBe('success');
         });
 
@@ -1052,7 +1112,9 @@ describe('RequestManager', () => {
 
             const ajaxMethod = ({ url, ...options }) => {
                 ajaxOptions = options;
-                return Promise.resolve({ data: 'success' });
+                const promise = Promise.resolve({ data: 'success' });
+                promise.abort = () => {}; // Mock abort method
+                return promise;
             };
 
             await requestManager.ajax(ajaxMethod, '/api/users', {
@@ -1062,20 +1124,21 @@ describe('RequestManager', () => {
 
             expect(ajaxOptions.method).toBe('POST');
             expect(ajaxOptions.headers).toEqual({ 'Content-Type': 'application/json' });
-            expect(ajaxOptions.signal).toBeInstanceOf(AbortSignal);
         });
 
         test('should cancel previous request with same URL', async () => {
             const controller1 = new AbortController();
             let firstResolved = false;
 
-            const ajaxMethod1 = ({ options }) => {
-                return new Promise((resolve) => {
+            const ajaxMethod1 = ({ url, ...options }) => {
+                const promise = new Promise((resolve) => {
                     setTimeout(() => {
                         firstResolved = true;
                         resolve('first');
                     }, 100);
                 });
+                promise.abort = () => {};
+                return promise;
             };
 
             const request1 = requestManager.ajax(ajaxMethod1, '/api/users', {
@@ -1086,7 +1149,11 @@ describe('RequestManager', () => {
             // Wait for the request to be registered
             await new Promise(resolve => setTimeout(resolve, 10));
 
-            const ajaxMethod2 = ({ options }) => Promise.resolve('second');
+            const ajaxMethod2 = ({ url, ...options }) => {
+                const promise = Promise.resolve('second');
+                promise.abort = () => {};
+                return promise;
+            };
             const result = await requestManager.ajax(ajaxMethod2, '/api/users');
 
             // Wait a bit to see if first request was cancelled
@@ -1102,13 +1169,15 @@ describe('RequestManager', () => {
             const controller1 = new AbortController();
             let firstResolved = false;
 
-            const ajaxMethod1 = ({ options }) => {
-                return new Promise((resolve) => {
+            const ajaxMethod1 = ({ url, ...options }) => {
+                const promise = new Promise((resolve) => {
                     setTimeout(() => {
                         firstResolved = true;
                         resolve('first');
                     }, 100);
                 });
+                promise.abort = () => {};
+                return promise;
             };
 
             const request1 = requestManager.ajax(ajaxMethod1, '/api/users?page=1', {
@@ -1120,7 +1189,11 @@ describe('RequestManager', () => {
             // Wait for the request to be registered
             await new Promise(resolve => setTimeout(resolve, 10));
 
-            const ajaxMethod2 = ({ options }) => Promise.resolve('second');
+            const ajaxMethod2 = ({ url, ...options }) => {
+                const promise = Promise.resolve('second');
+                promise.abort = () => {};
+                return promise;
+            };
             const result = await requestManager.ajax(ajaxMethod2, '/api/users?page=2', {
                 requestKey: 'get-users'
             });
@@ -1489,16 +1562,15 @@ describe('RequestManager', () => {
             expect(requestManager.getOptions()).toEqual({});
         });
 
-        test('should return options after request is made', async () => {
-            const promise = Promise.resolve('success');
-            
-            await requestManager.request('/api/test', promise, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+        test('should return manager options set via constructor', () => {
+            const verboseManager = new RequestManager({ verbose: true });
+            expect(verboseManager.getOptions()).toEqual({ verbose: true });
+        });
 
-            // Options are flushed after request, so should be empty
-            expect(requestManager.getOptions()).toEqual({});
+        test('should return manager options set via setOptions', () => {
+            const manager = new RequestManager();
+            manager.setOptions({ verbose: true });
+            expect(manager.getOptions()).toEqual({ verbose: true });
         });
     });
 

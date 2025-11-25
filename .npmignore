@@ -1,0 +1,19 @@
+# Source control
+.git
+.gitignore
+
+# IDE and editors
+.vscode
+.DS_Store
+
+# Tests
+__tests__/
+*.test.js
+*.spec.js
+jest.config.js
+
+# Development files
+.eslintrc*
+.prettierrc*
+.editorconfig
+rollup.config.js
