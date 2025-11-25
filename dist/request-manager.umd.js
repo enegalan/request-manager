@@ -1,7 +1,3 @@
-/**
- * RequestManager - A library for managing and regulating HTTP requests efficiently.
- * @license MIT
- */
 (function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
     typeof define === 'function' && define.amd ? define(factory) :

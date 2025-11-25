@@ -1,10 +1,6 @@
 /**
  * RequestManager - A library for managing and regulating HTTP requests efficiently.
  * @license MIT
- */
-/**
- * RequestManager - A library for managing and regulating HTTP requests efficiently.
- * @license MIT
  * This library allows you to manage HTTP requests from any library (ajax, Ext.Ajax, axios, fetch, etc.)
  * by accepting Promises as parameters. When a request is repeated with the same identifier,
  * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.

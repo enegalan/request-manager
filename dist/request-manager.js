@@ -1,7 +1,3 @@
-/**
- * RequestManager - A library for managing and regulating HTTP requests efficiently.
- * @license MIT
- */
 var RequestManager = (function () {
     'use strict';
 
