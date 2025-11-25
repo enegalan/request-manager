@@ -1,6 +1,6 @@
 {
   "name": "@enegalan/request-manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "JavaScript library for managing and regulating HTTP requests efficiently",
   "publishConfig": {
     "access": "public"
