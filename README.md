@@ -8,7 +8,7 @@ RequestManager is a JavaScript library designed to manage and regulate HTTP requ
 ## Key Features
 
 - **Universal Compatibility**: Works with any HTTP library that returns a Promise (fetch, axios, Ext.Ajax, etc.)
-- **Automatic Cancellation**: When a request is repeated with the same identifier, the previous request is automatically cancelled
+- **Automatic Cancellation**: When a request is repeated with the same `requestKey`, the previous request is automatically cancelled. This identifier is generated with `url` parameter or can be manually specified in `options`.
 - **Prioritizes Recent Requests**: The library ensures that only the most recent request is processed, cancelling older ones
 - **Simple API**: Easy to use and integrate into existing projects
 - **Adapt to your requirements**: The library supports `options` for custom request management
@@ -55,7 +55,6 @@ import RequestManager, { RequestOptions, XhrResponse } from '@enegalan/request-m
 
 const requestManager = new RequestManager({ verbose: true });
 
-// Types are automatically inferred
 const response: Response = await requestManager.fetch('/api/users');
 const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/user/1');
 ```
@@ -69,7 +68,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Simple GET request - automatically uses cleaned URL as requestKey
 requestManager.fetch('/api/users')
   .then(response => response.json())
   .then(data => console.log(data))
@@ -89,7 +87,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// POST request with options
 requestManager.fetch('/api/users', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -106,8 +103,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Using request() with a Promise
-// The URL is used to generate the request ID (cleaned URL)
 requestManager.request('/api/users', fetch('/api/users'))
   .then(response => response.json())
   .then(data => console.log(data));
@@ -120,8 +115,7 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Using request() with a Function - allows custom logic
-// The function receives { options } where options contains the signal
+// Custom logic
 requestManager.request('/api/users', ({ options }) => {
   return fetch('/api/users', options);
 })
@@ -229,8 +223,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Using axios with request() method
-// The URL is used to generate the request ID
 const CancelToken = axios.CancelToken;
 const source = CancelToken.source();
 
@@ -257,7 +249,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Using axios with Function - The function receives { options } where options contains the signal
 requestManager.request('/api/users', ({ options }) => {
   const CancelToken = axios.CancelToken;
   const source = CancelToken.source();
@@ -280,8 +271,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Example with a custom HTTP library using Function
-// The function receives { options } where options contains the signal
 requestManager.request('/api/data', ({ options }) => {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -308,7 +297,6 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// If you already have a Promise, you can pass it directly
 const existingPromise = fetch('/api/data');
 
 requestManager.request('/api/data', existingPromise, {
@@ -343,12 +331,15 @@ Executes an HTTP request, cancelling any previous request with the same identifi
 
 **Parameters:**
 - `url` (string): The URL of the request (used to generate request ID from cleaned URL)
-- `requestPromise` (Promise|Function|string): The Promise returned by any HTTP library (fetch, axios, etc.), a Function that receives `{ options }` and returns a Promise, or a URL string (which will be used with fetch internally)
+- `requestPromise` (Promise|Function|string): The Promise returned by any HTTP library (fetch, axios, etc.), a Function that can receive `{ options }` and returns a Promise, or a URL string (which will be used with fetch internally)
 - `options` (Object, optional): Configuration options
   - `abortController` (AbortController): AbortController instance (created automatically if not provided)
   - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
   - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will share the same ID and cancel previous ones. If not provided, the cleaned URL is used as the key. Can be a string, number, or function that returns a key.
   - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests. Useful for lazy loading scenarios where multiple requests should execute in parallel.
+
+> [!TIP]
+> When `requestPromise` is a Function, you can pass custom properties in `options`. These will be accessible inside the callback via the `{ options }` parameter.
 
 **Returns:** Promise that resolves/rejects based on the most recent request
 
