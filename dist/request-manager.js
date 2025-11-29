@@ -411,7 +411,7 @@ var RequestManager = (function () {
         /**
          * Executes an HTTP request using jQuery.ajax, cancelling any previous request with the same identifier.
          * 
-         * @param {Function} ajaxMethod - A function that receives { url, ...options } and returns a Promise
+         * @param {Function} ajaxFunction - A function that receives { url, ...options } and returns a Promise
          * @param {string} url - The URL to request
          * @param {Object} options - Optional configuration
          * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
@@ -423,11 +423,11 @@ var RequestManager = (function () {
          * 
          * @example
          * // Simple GET request
-         * requestManager.ajax(ajaxMethod, '/api/users');
+         * requestManager.ajax(ajaxFunction, '/api/users');
          * 
          * @example
          * // POST request with options
-         * requestManager.ajax(ajaxMethod, '/api/users', {
+         * requestManager.ajax(ajaxFunction, '/api/users', {
          *   method: 'POST',
          *   headers: { 'Content-Type': 'application/json' },
          *   body: JSON.stringify({ name: 'John' })
@@ -435,18 +435,22 @@ var RequestManager = (function () {
          * 
          * @example
          * // Request with requestKey for custom cancellation grouping with requestKey
-         * requestManager.ajax(ajaxMethod, '/api/users', {
+         * requestManager.ajax(ajaxFunction, '/api/users', {
          *   requestKey: 'get-users'
          * });
          */
-        ajax(ajaxMethod, url, options = {}) {
-            if (typeof ajaxMethod !== 'function') throw new Error('ajaxMethod must be a function');
+        ajax(ajaxFunction, url, options = {}) {
+            if (typeof ajaxFunction !== 'function') throw new Error('ajaxFunction parameter must be a function');
             const requestOptions = options || {};
             const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
             try {
-                const req = ajaxMethod({ url, ...requestOptions });
-                this.addAbortListener(req.abort, this.getSignal());
-                return this.#_request(requestId, req, requestOptions);
+                const abortController = options.abortController || this.getAbortController();
+                const req = ajaxFunction({ url, ...requestOptions });
+                console.log('req', req, typeof req.abort);
+                if (req && typeof req.abort === 'function') {
+                    this.addAbortListener(req.abort, abortController.signal);
+                }
+                return this.#_request(requestId, req, { ...requestOptions, abortController: abortController });
             } catch (error) {
                 return Promise.reject(error);
             }
@@ -595,7 +599,7 @@ var RequestManager = (function () {
 
             // Reject the wrapper promise
             if (requestInfo.rejectWrapper && this.verbose) {
-                requestInfo.rejectWrapper(new Error('Request was cancelled'));
+                requestInfo.rejectWrapper(new Error(`Request ${requestId} was cancelled`));
             }
             this.activeRequests.delete(requestId); // Remove from active requests
             return true;

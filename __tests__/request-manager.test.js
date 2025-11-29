@@ -1082,17 +1082,17 @@ describe('RequestManager', () => {
     });
 
     describe('ajax() method', () => {
-        test('should throw error if ajaxMethod is not a function', () => {
+        test('should throw error if ajaxFunction is not a function', () => {
             expect(() => {
                 requestManager.ajax('not-a-function', '/api/users');
-            }).toThrow('ajaxMethod must be a function');
+            }).toThrow('ajaxFunction must be a function');
         });
 
         test('should execute an ajax request with function', async () => {
             let ajaxCalled = false;
             let ajaxUrl = null;
 
-            const ajaxMethod = ({ url, ...options }) => {
+            const ajaxFunction = ({ url, ...options }) => {
                 ajaxCalled = true;
                 ajaxUrl = url;
                 const promise = Promise.resolve({ data: 'success' });
@@ -1100,7 +1100,7 @@ describe('RequestManager', () => {
                 return promise;
             };
 
-            const result = await requestManager.ajax(ajaxMethod, '/api/users');
+            const result = await requestManager.ajax(ajaxFunction, '/api/users');
 
             expect(ajaxCalled).toBe(true);
             expect(ajaxUrl).toBe('/api/users');
@@ -1110,14 +1110,14 @@ describe('RequestManager', () => {
         test('should pass options to ajax method', async () => {
             let ajaxOptions = null;
 
-            const ajaxMethod = ({ url, ...options }) => {
+            const ajaxFunction = ({ url, ...options }) => {
                 ajaxOptions = options;
                 const promise = Promise.resolve({ data: 'success' });
                 promise.abort = () => {}; // Mock abort method
                 return promise;
             };
 
-            await requestManager.ajax(ajaxMethod, '/api/users', {
+            await requestManager.ajax(ajaxFunction, '/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -1130,7 +1130,7 @@ describe('RequestManager', () => {
             const controller1 = new AbortController();
             let firstResolved = false;
 
-            const ajaxMethod1 = ({ url, ...options }) => {
+            const ajaxFunction1 = ({ url, ...options }) => {
                 const promise = new Promise((resolve) => {
                     setTimeout(() => {
                         firstResolved = true;
@@ -1141,7 +1141,7 @@ describe('RequestManager', () => {
                 return promise;
             };
 
-            const request1 = requestManager.ajax(ajaxMethod1, '/api/users', {
+            const request1 = requestManager.ajax(ajaxFunction1, '/api/users', {
                 abortController: controller1
             });
             request1.catch(() => {}); // Handle cancellation
@@ -1149,12 +1149,12 @@ describe('RequestManager', () => {
             // Wait for the request to be registered
             await new Promise(resolve => setTimeout(resolve, 10));
 
-            const ajaxMethod2 = ({ url, ...options }) => {
+            const ajaxFunction2 = ({ url, ...options }) => {
                 const promise = Promise.resolve('second');
                 promise.abort = () => {};
                 return promise;
             };
-            const result = await requestManager.ajax(ajaxMethod2, '/api/users');
+            const result = await requestManager.ajax(ajaxFunction2, '/api/users');
 
             // Wait a bit to see if first request was cancelled
             await new Promise(resolve => setTimeout(resolve, 150));
@@ -1169,7 +1169,7 @@ describe('RequestManager', () => {
             const controller1 = new AbortController();
             let firstResolved = false;
 
-            const ajaxMethod1 = ({ url, ...options }) => {
+            const ajaxFunction1 = ({ url, ...options }) => {
                 const promise = new Promise((resolve) => {
                     setTimeout(() => {
                         firstResolved = true;
@@ -1180,7 +1180,7 @@ describe('RequestManager', () => {
                 return promise;
             };
 
-            const request1 = requestManager.ajax(ajaxMethod1, '/api/users?page=1', {
+            const request1 = requestManager.ajax(ajaxFunction1, '/api/users?page=1', {
                 abortController: controller1,
                 requestKey: 'get-users'
             });
@@ -1189,12 +1189,12 @@ describe('RequestManager', () => {
             // Wait for the request to be registered
             await new Promise(resolve => setTimeout(resolve, 10));
 
-            const ajaxMethod2 = ({ url, ...options }) => {
+            const ajaxFunction2 = ({ url, ...options }) => {
                 const promise = Promise.resolve('second');
                 promise.abort = () => {};
                 return promise;
             };
-            const result = await requestManager.ajax(ajaxMethod2, '/api/users?page=2', {
+            const result = await requestManager.ajax(ajaxFunction2, '/api/users?page=2', {
                 requestKey: 'get-users'
             });
 

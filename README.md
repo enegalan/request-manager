@@ -408,12 +408,12 @@ requestManager.axios('/api/users', {
 .then(response => console.log(response.data));
 ```
 
-### `ajax(ajaxMethod, url, options)`
+### `ajax(ajaxFunction, url, options)`
 
 Executes an HTTP request using a custom ajax method function, cancelling any previous request with the same identifier.
 
 **Parameters:**
-- `ajaxMethod` (Function): A function that receives `{ url, ...options }` and returns a Promise. The function should accept an object with `url` and other options including the `signal` (AbortSignal).
+- `ajaxFunction` (Function): A function that receives `{ url, ...options }` and returns a Promise. The function should accept an object with `url` and other options including the `signal` (AbortSignal).
 - `url` (string): The URL to request
 - `options` (Object, optional): Configuration options
   - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.

@@ -197,9 +197,9 @@ export interface RequestFunctionOptions {
 export type RequestFunction<T = any> = (params: RequestFunctionOptions) => Promise<T>;
 
 /**
- * Ajax method function type
+ * Ajax function type
  */
-export type AjaxMethod<T = any> = (params: { url: string; signal?: AbortSignal } & Record<string, any>) => Promise<T> & { abort?: () => void };
+export type AjaxFunction<T = any> = (params: { url: string; signal?: AbortSignal } & Record<string, any>) => Promise<T> & { abort?: () => void };
 
 /**
  * Axios instance interface (minimal definition for compatibility)
@@ -381,7 +381,7 @@ declare class RequestManager {
     /**
      * Executes an HTTP request using a custom ajax method, cancelling any previous request with the same identifier.
      * 
-     * @param ajaxMethod - A function that receives { url, ...options } and returns a Promise
+     * @param ajaxFunction - A function that receives { url, ...options } and returns a Promise
      * @param url - The URL to request
      * @param options - Optional configuration
      * @returns A Promise that resolves/rejects based on the most recent request
@@ -395,7 +395,7 @@ declare class RequestManager {
      * );
      */
     ajax<T = any>(
-        ajaxMethod: AjaxMethod<T>,
+        ajaxFunction: AjaxFunction<T>,
         url: string,
         options?: BaseRequestOptions & Record<string, any>
     ): Promise<T>;
