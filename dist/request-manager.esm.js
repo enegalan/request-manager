@@ -441,12 +441,22 @@ class RequestManager {
         const requestOptions = options || {};
         const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
         try {
+            // AbortController is needed at this point, so we clear here any existing one.
+            // This is the same behavior as in the request method.
+            this.#_clearAbortController();
             const abortController = options.abortController || this.getAbortController();
             const req = ajaxFunction({ url, ...requestOptions });
-            console.log('req', req, typeof req.abort);
-            if (req && typeof req.abort === 'function') {
-                this.addAbortListener(req.abort, abortController.signal);
+            // Determine abort method
+            let abortMethod = null;
+            if (req) {
+                if (typeof req.abort === 'function') {
+                    abortMethod = req.abort.bind(req);
+                } else if (req.xhr && typeof req.xhr.abort === 'function') {
+                    abortMethod = req.xhr.abort.bind(req.xhr);
+                }
             }
+            if (abortMethod) this.addAbortListener(abortMethod, abortController.signal);
+            // Pass the AbortController to avoid creating another one for this request
             return this.#_request(requestId, req, { ...requestOptions, abortController: abortController });
         } catch (error) {
             return Promise.reject(error);
