@@ -125,10 +125,11 @@ class RequestManager {
      *                                              If provided, requests with the same key will share the same ID.
      *                                              If null or undefined, the cleaned URL will be used as the key.
      * @param {boolean} noCancel - If true, generates a unique ID to prevent cancellation
+     * @param {boolean} includeQuery - If true, keeps query string in the URL-based key
      * @returns {string} A unique request identifier
      * @private
      */
-    #_generateRequestId(url, requestKey = null, noCancel = false) {
+    #_generateRequestId(url, requestKey = null, noCancel = false, includeQuery = false) {
         if (noCancel) {
             // Generate a unique ID to prevent cancellation
             return `request_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
@@ -145,12 +146,9 @@ class RequestManager {
         }
         // Use cleaned URL as key when requestKey is null/undefined
         let cleanedUrl = url || '';
-        let hasProtocol = cleanedUrl.includes('://');
-        if (hasProtocol) cleanedUrl = cleanedUrl.split('://')[1];
-        let hasParams = cleanedUrl.includes('?');
-        if (hasParams) cleanedUrl = cleanedUrl.split('?')[0];
-        let hasHash = cleanedUrl.includes('#');
-        if (hasHash) cleanedUrl = cleanedUrl.split('#')[0];
+        if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
+        if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
+        if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
         return `request_${cleanedUrl}`;
     }
 
@@ -164,7 +162,7 @@ class RequestManager {
      */
     #_prepareFetchOptions(options, signal, additionalOptions = {}) {
         const fetchOptions = Object.assign({}, additionalOptions);
-        const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel'];
+        const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
         Object.keys(options).forEach((key) => {
             if (customOptions.includes(key)) return;
             fetchOptions[key] = options[key];
@@ -308,7 +306,12 @@ class RequestManager {
      */
     request(url, requestPromise, options = {}) {
         const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+        const requestId = this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
         return this.#_request(requestId, requestPromise, requestOptions);
     }
 
@@ -352,7 +355,12 @@ class RequestManager {
      */
     fetch(url, options = {}) {
         const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+        const requestId = this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
         return this.#_request(requestId, url, requestOptions);
     }
 
@@ -401,7 +409,12 @@ class RequestManager {
         const requestOptions = options || {};
         const axiosLib = axiosInstance || axios;
         const cancelToken = axiosLib.CancelToken.source();
-        const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+        const requestId = this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
         return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...requestOptions }), {
             cancelToken: cancelToken,
             ...requestOptions,
@@ -442,7 +455,12 @@ class RequestManager {
     ajax(ajaxFunction, url, options = {}) {
         if (typeof ajaxFunction !== 'function') throw new Error('ajaxFunction parameter must be a function');
         const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+        const requestId = this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
         try {
             // AbortController is needed at this point, so we clear here any existing one.
             // This is the same behavior as in the request method.
@@ -508,7 +526,12 @@ class RequestManager {
      */
     xhr(url, options = {}) {
         const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+        const requestId = this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
         const xhrFunction = ({ options: fetchOptions }) => {
             // Create XMLHttpRequest
             const xhr = new XMLHttpRequest();

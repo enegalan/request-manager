@@ -54,6 +54,11 @@ export interface BaseRequestOptions {
      * allowing concurrent requests.
      */
     noCancel?: boolean;
+
+    /**
+     * If true, the query string is kept when generating the request ID from the URL.
+     */
+    includeQuery?: boolean;
 }
 
 /**

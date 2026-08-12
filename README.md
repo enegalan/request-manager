@@ -227,6 +227,26 @@ requestManager
 // Even though they share the same cleaned URL (without query params)
 ```
 
+### Using includeQuery to Distinguish Query Strings
+
+```javascript
+import RequestManager from '@enegalan/request-manager';
+
+const requestManager = new RequestManager();
+
+// By default, query params are stripped from the ID:
+// /api/users?page=1 and /api/users?page=2 share the same ID and cancel each other.
+
+// With includeQuery: true, the query string is part of the ID
+requestManager.fetch('/api/users?page=1', { includeQuery: true });
+requestManager.fetch('/api/users?page=2', { includeQuery: true });
+// Both run — different query = different ID
+
+// Same full URL still cancels the previous one
+requestManager.fetch('/api/users?page=1', { includeQuery: true });
+requestManager.fetch('/api/users?page=1', { includeQuery: true }); // cancels the previous page=1
+```
+
 ### Using with Axios
 
 ```javascript
@@ -360,13 +380,14 @@ Executes an HTTP request, cancelling any previous request with the same identifi
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will share the same ID and cancel previous ones. If not provided, the cleaned URL is used as the key. Can be a string, number, or function that returns a key.
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests. Useful for lazy loading scenarios where multiple requests should execute in parallel.
+    - `includeQuery` (boolean): If true, keeps the query string when generating the request ID from the URL.
 
 > [!TIP]
 > When `requestPromise` is a Function, you can pass custom properties in `options`. These will be accessible inside the callback via the `{ options }` parameter.
 
 **Returns:** Promise that resolves/rejects based on the most recent request
 
-**Note:** The request ID is automatically generated from the cleaned URL (protocol and query params removed) unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request to prevent cancellation. When `requestPromise` is a Function, it receives `{ options }` where `options` contains the `signal` (AbortSignal) and any other fetch options.
+**Note:** The request ID is automatically generated from the cleaned URL (protocol and hash removed; query params removed unless `includeQuery` is true) unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request to prevent cancellation. When `requestPromise` is a Function, it receives `{ options }` where `options` contains the `signal` (AbortSignal) and any other fetch options.
 
 ### `fetch(url, options)`
 
@@ -380,6 +401,7 @@ Executes an HTTP request using fetch, cancelling any previous request with the s
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
+    - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - Any other properties are passed as fetch options (method, headers, body, etc.)
 
 **Returns:** Promise that resolves/rejects based on the most recent request
@@ -396,6 +418,7 @@ Executes an HTTP request using axios, cancelling any previous request with the s
 - `options` (Object, optional): Configuration options
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
+    - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - Any other properties are passed as axios options (method, headers, params, data, etc.)
 - `axiosInstance` (Object, optional): Custom axios instance to use. If not provided, uses the global `axios` object.
 
@@ -449,6 +472,7 @@ Executes an HTTP request using a custom ajax method function, cancelling any pre
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
     - `verbose` (boolean): If true, cancellation errors will include messages
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
+    - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - Any other properties are passed to the ajax method function
 
 **Returns:** Promise that resolves/rejects based on the most recent request
@@ -501,6 +525,7 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
     - `verbose` (boolean): If true, cancellation errors will include messages
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
+    - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
 
 **Returns:** Promise that resolves/rejects based on the most recent request. The resolved value is an object with:
 

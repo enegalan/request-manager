@@ -1,7 +1,7 @@
 import RequestManager from '../main.js';
 
 // Helper function to generate request ID (replicates private #_generateRequestId logic)
-function generateRequestId(url, requestKey = null) {
+function generateRequestId(url, requestKey = null, includeQuery = false) {
     if (requestKey !== null && requestKey !== undefined) {
         if (typeof requestKey === 'function') {
             try {
@@ -14,12 +14,9 @@ function generateRequestId(url, requestKey = null) {
     }
     // Use cleaned URL as key when requestKey is null/undefined
     let cleanedUrl = url || '';
-    let hasProtocol = cleanedUrl.includes('://');
-    if (hasProtocol) cleanedUrl = cleanedUrl.split('://')[1];
-    let hasParams = cleanedUrl.includes('?');
-    if (hasParams) cleanedUrl = cleanedUrl.split('?')[0];
-    let hasHash = cleanedUrl.includes('#');
-    if (hasHash) cleanedUrl = cleanedUrl.split('#')[0];
+    if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
+    if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
+    if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
     return `request_${cleanedUrl}`;
 }
 
@@ -1674,6 +1671,83 @@ describe('RequestManager', () => {
                     resolve();
                 }, 10);
             });
+        });
+    });
+
+    describe('includeQuery option', () => {
+        let originalFetch;
+
+        beforeEach(() => {
+            originalFetch = global.fetch;
+        });
+
+        afterEach(() => {
+            global.fetch = originalFetch;
+        });
+
+        test('should keep different query strings as different request IDs', async () => {
+            global.fetch = (url) => {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve({
+                            ok: true,
+                            json: async () => ({ url }),
+                        });
+                    }, 30);
+                });
+            };
+
+            const result1 = requestManager.fetch('/api/users?page=1', { includeQuery: true });
+            const result2 = requestManager.fetch('/api/users?page=2', { includeQuery: true });
+
+            expect(requestManager.getActiveCount()).toBe(2);
+
+            const [data1, data2] = await Promise.all([result1.then((r) => r.json()), result2.then((r) => r.json())]);
+
+            expect(data1.url).toBe('/api/users?page=1');
+            expect(data2.url).toBe('/api/users?page=2');
+        });
+
+        test('should still cancel when the full URL including query is the same', async () => {
+            global.fetch = () => new Promise(() => {});
+
+            const request1 = requestManager.fetch('/api/users?page=1', { includeQuery: true });
+            request1.catch(() => {});
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            global.fetch = () =>
+                Promise.resolve({
+                    ok: true,
+                    json: async () => ({ page: 1, second: true }),
+                });
+
+            const result = await requestManager.fetch('/api/users?page=1', { includeQuery: true });
+            const data = await result.json();
+
+            expect(data.second).toBe(true);
+            expect(requestManager.isActive(generateRequestId('/api/users?page=1', null, true))).toBe(false);
+        });
+
+        test('should strip query by default so different pages cancel each other', async () => {
+            global.fetch = () => new Promise(() => {});
+
+            const request1 = requestManager.fetch('/api/users?page=1');
+            request1.catch(() => {});
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            global.fetch = () =>
+                Promise.resolve({
+                    ok: true,
+                    json: async () => ({ page: 2 }),
+                });
+
+            const result = await requestManager.fetch('/api/users?page=2');
+            const data = await result.json();
+
+            expect(data.page).toBe(2);
+            expect(requestManager.getActiveCount()).toBe(0);
         });
     });
 
