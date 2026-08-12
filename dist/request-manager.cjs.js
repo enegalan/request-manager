@@ -45,8 +45,9 @@ class RequestManager {
          */
         this.options = {};
         /**
-         * AbortController instance for the current request: will be flushed after the request is completed
-         * @type {AbortController}
+         * One-shot AbortController for getSignal()/getAbortController() handoff.
+         * Consumed by the next request that does not pass options.abortController.
+         * @type {AbortController|null}
          */
         this.abortController = null;
     }
@@ -88,9 +89,9 @@ class RequestManager {
     }
 
     /**
-     * Creates an AbortController and returns its signal.
-     * The AbortController is stored internally and will be used by the next request() call.
-     * This allows users to get the signal before creating the request.
+     * Creates a new AbortController and returns its signal for the next request()
+     * (one getSignal → one request). Do not use for parallel requests; use fetch(),
+     * axios(), or request(url, ({ options }) => ...) instead — they create their own signal.
      *
      * @returns {AbortSignal} The signal from a new AbortController
      *
@@ -103,24 +104,26 @@ class RequestManager {
     }
 
     /**
-     * Gets the current AbortController instance
-     * Creates a new AbortController if none exists or if the current one is aborted
-     * @returns {AbortController} The current AbortController instance
+     * Creates a new AbortController for the next request handoff.
+     * Always returns a fresh controller (never reuses one from another in-flight request).
+     * @returns {AbortController} A new AbortController instance
      */
     getAbortController() {
-        // Create a new AbortController if none exists or if the current one is aborted
-        if (!this.abortController || this.abortController.signal.aborted) {
-            this.abortController = new AbortController();
-        }
+        this.abortController = new AbortController();
         return this.abortController;
     }
 
     /**
-     * Clears the current AbortController
+     * Resolves the AbortController for a request: explicit option, pending handoff, or new.
+     * Clears the pending handoff so concurrent requests do not share it.
+     * @param {AbortController|undefined} provided - Optional AbortController from options
+     * @returns {AbortController}
      * @private
      */
-    #_clearAbortController() {
+    #_resolveAbortController(provided) {
+        const abortController = provided || this.abortController || new AbortController();
         this.abortController = null;
+        return abortController;
     }
 
     /**
@@ -190,9 +193,8 @@ class RequestManager {
      */
     #_request(requestId, requestPromise, options = {}) {
         this.#_setRequestOptions(options);
-        if (!options.abortController) this.#_clearAbortController(); // Clear any existing abortController to ensure each request gets a fresh one
         this.#_flushRequestOptions();
-        const abortController = options.abortController || this.getAbortController();
+        const abortController = this.#_resolveAbortController(options.abortController);
 
         // Handle different types of requestPromise inputs
         // Priority: Function (Custom logic) > String (URL) > Promise (axios, fetch, etc.)
@@ -467,10 +469,7 @@ class RequestManager {
             requestOptions.includeQuery
         );
         try {
-            // AbortController is needed at this point, so we clear here any existing one.
-            // This is the same behavior as in the request method.
-            this.#_clearAbortController();
-            const abortController = options.abortController || this.getAbortController();
+            const abortController = this.#_resolveAbortController(options.abortController);
             const req = ajaxFunction({ url, ...requestOptions });
             // Determine abort method
             let abortMethod = null;
