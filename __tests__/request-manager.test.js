@@ -516,7 +516,7 @@ describe('RequestManager', () => {
     });
 
     describe('getAbortController()', () => {
-        test('should create a new AbortController when none exists', () => {
+        test('should create a new AbortController', () => {
             const abortController = requestManager.getAbortController();
 
             expect(abortController).toBeInstanceOf(AbortController);
@@ -524,22 +524,11 @@ describe('RequestManager', () => {
             expect(abortController.signal.aborted).toBe(false);
         });
 
-        test('should return the same AbortController on subsequent calls if not aborted', () => {
+        test('should return a new AbortController on each call', () => {
             const abortController1 = requestManager.getAbortController();
-            const abortController2 = requestManager.getAbortController();
-
-            expect(abortController1).toBe(abortController2);
-        });
-
-        test('should create a new AbortController if the current one is aborted', () => {
-            const abortController1 = requestManager.getAbortController();
-            abortController1.abort();
-
             const abortController2 = requestManager.getAbortController();
 
             expect(abortController1).not.toBe(abortController2);
-            expect(abortController1.signal.aborted).toBe(true);
-            expect(abortController2.signal.aborted).toBe(false);
         });
 
         test('should work with request() method', async () => {
@@ -552,6 +541,22 @@ describe('RequestManager', () => {
 
             expect(result).toBe('success');
         });
+
+        test('should hand off pending controller to the next request without options.abortController', async () => {
+            const abortController = requestManager.getAbortController();
+            let cancelled = false;
+            abortController.signal.addEventListener('abort', () => {
+                cancelled = true;
+            });
+
+            const hanging = new Promise(() => {});
+            const request1 = requestManager.request('/api/pending', hanging);
+            request1.catch(() => {});
+
+            await requestManager.request('/api/pending', Promise.resolve('second'));
+
+            expect(cancelled).toBe(true);
+        });
     });
 
     describe('getSignal()', () => {
@@ -562,23 +567,11 @@ describe('RequestManager', () => {
             expect(signal.aborted).toBe(false);
         });
 
-        test('should return signal from the same AbortController on subsequent calls if not aborted', () => {
+        test('should return a new signal on each call', () => {
             const signal1 = requestManager.getSignal();
-            const signal2 = requestManager.getSignal();
-
-            expect(signal1).toBe(signal2);
-        });
-
-        test('should return signal from a new AbortController if the current one is aborted', () => {
-            const signal1 = requestManager.getSignal();
-            const abortController = requestManager.getAbortController();
-            abortController.abort();
-
             const signal2 = requestManager.getSignal();
 
             expect(signal1).not.toBe(signal2);
-            expect(signal1.aborted).toBe(true);
-            expect(signal2.aborted).toBe(false);
         });
 
         test('should work with fetch() method', async () => {
@@ -607,12 +600,38 @@ describe('RequestManager', () => {
         });
 
         test('should allow manual abort of the signal', () => {
-            const signal = requestManager.getSignal();
             const abortController = requestManager.getAbortController();
+            const signal = abortController.signal;
 
             expect(signal.aborted).toBe(false);
             abortController.abort();
             expect(signal.aborted).toBe(true);
+        });
+    });
+
+    describe('per-request AbortController isolation', () => {
+        test('concurrent requests should not share AbortControllers', async () => {
+            const controllers = [];
+            global.fetch = () => new Promise(() => {});
+
+            requestManager
+                .request('/api/a', ({ options }) => {
+                    controllers.push(options.signal);
+                    return new Promise(() => {});
+                })
+                .catch(() => {});
+
+            requestManager
+                .request('/api/b', ({ options }) => {
+                    controllers.push(options.signal);
+                    return new Promise(() => {});
+                })
+                .catch(() => {});
+
+            expect(controllers.length).toBe(2);
+            expect(controllers[0]).not.toBe(controllers[1]);
+
+            requestManager.cancelAll();
         });
     });
 

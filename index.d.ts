@@ -268,7 +268,8 @@ declare class RequestManager {
     options: Record<string, any>;
 
     /**
-     * AbortController instance for the current request
+     * One-shot AbortController handoff from getAbortController()/getSignal().
+     * Consumed by the next request that does not pass options.abortController.
      */
     abortController: AbortController | null;
 
@@ -291,8 +292,9 @@ declare class RequestManager {
     getOptions(): ManagerOptions;
 
     /**
-     * Creates an AbortController and returns its signal.
-     * The AbortController is stored internally and will be used by the next request() call.
+     * Creates a new AbortController and returns its signal for the next request()
+     * (one getSignal → one request). Do not use for parallel requests; use fetch(),
+     * axios(), or request(url, ({ options }) => ...) instead — they create their own signal.
      * @returns The signal from a new AbortController
      *
      * @example
@@ -302,9 +304,9 @@ declare class RequestManager {
     getSignal(): AbortSignal;
 
     /**
-     * Gets the current AbortController instance.
-     * Creates a new AbortController if none exists or if the current one is aborted.
-     * @returns The current AbortController instance
+     * Creates a new AbortController for the next request handoff.
+     * Always returns a fresh controller (never reuses one from another in-flight request).
+     * @returns A new AbortController instance
      */
     getAbortController(): AbortController;
 

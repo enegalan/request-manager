@@ -597,9 +597,9 @@ Clears all active requests without cancelling them. Use with caution - this will
 
 ### `getSignal()`
 
-Gets the AbortSignal from the current AbortController. Creates a new AbortController if one doesn't exist or if the current one is aborted.
+Creates a new AbortController and returns its signal for the next `request()` (one `getSignal` → one request). Do not use for parallel requests; use `fetch()`, `axios()`, or `request(url, ({ options }) => ...)` instead — they create their own signal.
 
-**Returns:** AbortSignal from the current AbortController
+**Returns:** AbortSignal from a new AbortController
 
 **Example:**
 
@@ -610,7 +610,7 @@ requestManager.request('/api/users', fetch('/api/users', { signal }));
 
 ### `getAbortController()`
 
-Gets the current AbortController instance. Creates a new AbortController if one doesn't exist or if the current one is aborted.
+Creates a new AbortController for the next request handoff. Always returns a fresh controller (never reuses one from another in-flight request).
 
 **Returns:** AbortController instance
 
