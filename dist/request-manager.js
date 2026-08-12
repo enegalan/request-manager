@@ -4,6 +4,7 @@ var RequestManager = (function () {
     /**
      * RequestManager - A library for managing and regulating HTTP requests efficiently.
      * @license MIT
+     * @author Eneko Galan <enekogalanelorza@gmail.com>
      * This library allows you to manage HTTP requests from any library (ajax, Ext.Ajax, axios, fetch, etc.)
      * by accepting Promises as parameters. When a request is repeated with the same identifier,
      * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.
@@ -89,9 +90,9 @@ var RequestManager = (function () {
          * Creates an AbortController and returns its signal.
          * The AbortController is stored internally and will be used by the next request() call.
          * This allows users to get the signal before creating the request.
-         * 
+         *
          * @returns {AbortSignal} The signal from a new AbortController
-         * 
+         *
          * @example
          * const signal = requestManager.getSignal();
          * requestManager.request('/api/users', fetch('/api/users', { signal }));
@@ -128,18 +129,20 @@ var RequestManager = (function () {
          *                                              If provided, requests with the same key will share the same ID.
          *                                              If null or undefined, the cleaned URL will be used as the key.
          * @param {boolean} noCancel - If true, generates a unique ID to prevent cancellation
+         * @param {boolean} includeQuery - If true, keeps query string in the URL-based key
          * @returns {string} A unique request identifier
          * @private
          */
-        #_generateRequestId(url, requestKey = null, noCancel = false) {
-            if (noCancel) { // Generate a unique ID to prevent cancellation
+        #_generateRequestId(url, requestKey = null, noCancel = false, includeQuery = false) {
+            if (noCancel) {
+                // Generate a unique ID to prevent cancellation
                 return `request_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             }
             if (requestKey !== null && requestKey !== undefined) {
                 if (typeof requestKey === 'function') {
                     try {
                         requestKey = requestKey();
-                    } catch (error) {
+                    } catch {
                         requestKey = null;
                     }
                 }
@@ -147,12 +150,9 @@ var RequestManager = (function () {
             }
             // Use cleaned URL as key when requestKey is null/undefined
             let cleanedUrl = url || '';
-            let hasProtocol = cleanedUrl.includes('://');
-            if (hasProtocol) cleanedUrl = cleanedUrl.split('://')[1];
-            let hasParams = cleanedUrl.includes('?');
-            if (hasParams) cleanedUrl = cleanedUrl.split('?')[0];
-            let hasHash = cleanedUrl.includes('#');
-            if (hasHash) cleanedUrl = cleanedUrl.split('#')[0];
+            if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
+            if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
+            if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
             return `request_${cleanedUrl}`;
         }
 
@@ -166,8 +166,8 @@ var RequestManager = (function () {
          */
         #_prepareFetchOptions(options, signal, additionalOptions = {}) {
             const fetchOptions = Object.assign({}, additionalOptions);
-            const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel'];
-            Object.keys(options).forEach(key => {
+            const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
+            Object.keys(options).forEach((key) => {
                 if (customOptions.includes(key)) return;
                 fetchOptions[key] = options[key];
             });
@@ -177,7 +177,7 @@ var RequestManager = (function () {
 
         /**
          * Internal method that handles the core request logic.
-         * 
+         *
          * @param {string} requestId - Unique identifier for the request
          * @param {Promise|Function|string} requestPromise - The request promise, function, or URL string
          * @param {Object} options - Configuration options
@@ -224,7 +224,7 @@ var RequestManager = (function () {
                 resolveWrapper: resolveWrapper,
                 rejectWrapper: rejectWrapper,
                 isCancelled: false,
-                verbose: this.verbose
+                verbose: this.verbose,
             };
 
             this.activeRequests.set(requestId, requestInfo);
@@ -238,9 +238,10 @@ var RequestManager = (function () {
                             resolveWrapper(result);
                         }
                     });
-                    if (req.catch) req.catch((error) => {
-                        onError(this, error);
-                    });
+                    if (req.catch)
+                        req.catch((error) => {
+                            onError(this, error);
+                        });
                 } catch (error) {
                     onError(this, error);
                 }
@@ -251,7 +252,8 @@ var RequestManager = (function () {
                     // Only delete if this is still the active request
                     scope.activeRequests.delete(requestId);
                     if (!requestInfo.isCancelled) rejectWrapper(error);
-                    else if (requestInfo.isCancelled && requestInfo.verbose) rejectWrapper(new Error('Request was cancelled'));
+                    else if (requestInfo.isCancelled && requestInfo.verbose)
+                        rejectWrapper(new Error('Request was cancelled'));
                 }
             } else {
                 // If requestPromise is not a promise, we can't track its completion automatically
@@ -271,7 +273,7 @@ var RequestManager = (function () {
 
         /**
          * Executes an HTTP request, cancelling any previous request with the same identifier.
-         * 
+         *
          * @param {string} url - The URL to request
          * @param {Promise|Function} requestPromise - The request promise or function that returns a promise
          * @param {Object} options - Optional configuration
@@ -283,15 +285,15 @@ var RequestManager = (function () {
          * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
          *                                                    Any other properties are passed as fetch options (method, headers, body, etc.)
          * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-         * 
+         *
          * @example
          * // Request with Promise
          * requestManager.request('/api/users', axios.get('/api/users', { cancelToken: axios.CancelToken.source().token }));
-         * 
+         *
          * @example
          * // Request with Function
          * requestManager.request('/api/users', ({ options }) => fetch('/api/users', { signal: options.signal, ...options }));
-         * 
+         *
          * @example
          * // Request with Promise and custom cancellation grouping with requestKey
          * const options = {
@@ -299,7 +301,7 @@ var RequestManager = (function () {
          *   cancelToken: axios.CancelToken.source().cancel
          * }
          * requestManager.request('/api/users', axios.get('/api/users', options), options);
-         * 
+         *
          * @example
          * // Request with noCancel to allow concurrent requests (e.g., lazy loading)
          * requestManager.request('/api/lazy?load=1', fetch('/api/lazy?load=1'), { noCancel: true });
@@ -308,13 +310,18 @@ var RequestManager = (function () {
          */
         request(url, requestPromise, options = {}) {
             const requestOptions = options || {};
-            const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+            const requestId = this.#_generateRequestId(
+                url,
+                requestOptions.requestKey,
+                requestOptions.noCancel,
+                requestOptions.includeQuery
+            );
             return this.#_request(requestId, requestPromise, requestOptions);
         }
 
         /**
          * Executes an HTTP request using fetch, cancelling any previous request with the same identifier.
-         * 
+         *
          * @param {string} url - The URL to fetch
          * @param {Object} options - Optional configuration
          * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
@@ -325,11 +332,11 @@ var RequestManager = (function () {
          * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
          *                                                    Any other properties are passed as fetch options (method, headers, body, etc.)
          * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-         * 
+         *
          * @example
          * // Simple GET request
          * requestManager.fetch('/api/users');
-         * 
+         *
          * @example
          * // POST request with options
          * requestManager.fetch('/api/users', {
@@ -337,13 +344,13 @@ var RequestManager = (function () {
          *   headers: { 'Content-Type': 'application/json' },
          *   body: JSON.stringify({ name: 'John' })
          * });
-         * 
+         *
          * @example
          * // Request with requestKey for custom cancellation grouping with requestKey
          * requestManager.fetch('/api/users', {
          *   requestKey: 'get-users'
          * });
-         * 
+         *
          * @example
          * // Request with noCancel to allow concurrent requests (e.g., lazy loading)
          * requestManager.fetch('/api/lazy?load=1', { noCancel: true });
@@ -352,13 +359,18 @@ var RequestManager = (function () {
          */
         fetch(url, options = {}) {
             const requestOptions = options || {};
-            const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+            const requestId = this.#_generateRequestId(
+                url,
+                requestOptions.requestKey,
+                requestOptions.noCancel,
+                requestOptions.includeQuery
+            );
             return this.#_request(requestId, url, requestOptions);
         }
 
         /**
          * Executes an HTTP request using axios, cancelling any previous request with the same identifier.
-         * 
+         *
          * @param {string} url - The URL to request
          * @param {Object} options - Optional configuration
          * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
@@ -368,16 +380,16 @@ var RequestManager = (function () {
          *                                                    Any other properties are passed as axios options (method, headers, params, data, etc.)
          * @param {Object} axiosInstance - Optional axios instance to use. If not provided, uses global axios.
          * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-         * 
+         *
          * @example
          * // Simple GET request (uses global axios)
          * requestManager.axios('/api/users');
-         * 
+         *
          * @example
          * // With custom axios instance
          * const myAxios = axios.create({ baseURL: 'https://api.example.com' });
          * requestManager.axios('/users', {}, myAxios);
-         * 
+         *
          * @example
          * // POST request with options
          * requestManager.axios('/api/users', {
@@ -385,13 +397,13 @@ var RequestManager = (function () {
          *   headers: { 'Content-Type': 'application/json' },
          *   body: JSON.stringify({ name: 'John' })
          * });
-         * 
+         *
          * @example
          * // Request with requestKey for custom cancellation grouping with requestKey
          * requestManager.axios('/api/users', {
          *   requestKey: 'get-users'
          * });
-         * 
+         *
          * @example
          * // Request with noCancel to allow concurrent requests
          * requestManager.axios('/api/lazy?load=1', { noCancel: true });
@@ -401,16 +413,21 @@ var RequestManager = (function () {
             const requestOptions = options || {};
             const axiosLib = axiosInstance || axios;
             const cancelToken = axiosLib.CancelToken.source();
-            const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
-            return this.#_request(requestId, axiosLib.get(url, { cancelToken: cancelToken.token, ...requestOptions }), {
+            const requestId = this.#_generateRequestId(
+                url,
+                requestOptions.requestKey,
+                requestOptions.noCancel,
+                requestOptions.includeQuery
+            );
+            return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...requestOptions }), {
                 cancelToken: cancelToken,
-                ...requestOptions
+                ...requestOptions,
             });
         }
 
         /**
          * Executes an HTTP request using jQuery.ajax, cancelling any previous request with the same identifier.
-         * 
+         *
          * @param {Function} ajaxFunction - A function that receives { url, ...options } and returns a Promise
          * @param {string} url - The URL to request
          * @param {Object} options - Optional configuration
@@ -420,11 +437,11 @@ var RequestManager = (function () {
          * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
          *                                                    Any other properties are passed to the ajax method function
          * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-         * 
+         *
          * @example
          * // Simple GET request
          * requestManager.ajax(ajaxFunction, '/api/users');
-         * 
+         *
          * @example
          * // POST request with options
          * requestManager.ajax(ajaxFunction, '/api/users', {
@@ -432,7 +449,7 @@ var RequestManager = (function () {
          *   headers: { 'Content-Type': 'application/json' },
          *   body: JSON.stringify({ name: 'John' })
          * });
-         * 
+         *
          * @example
          * // Request with requestKey for custom cancellation grouping with requestKey
          * requestManager.ajax(ajaxFunction, '/api/users', {
@@ -442,7 +459,12 @@ var RequestManager = (function () {
         ajax(ajaxFunction, url, options = {}) {
             if (typeof ajaxFunction !== 'function') throw new Error('ajaxFunction parameter must be a function');
             const requestOptions = options || {};
-            const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+            const requestId = this.#_generateRequestId(
+                url,
+                requestOptions.requestKey,
+                requestOptions.noCancel,
+                requestOptions.includeQuery
+            );
             try {
                 // AbortController is needed at this point, so we clear here any existing one.
                 // This is the same behavior as in the request method.
@@ -468,7 +490,7 @@ var RequestManager = (function () {
 
         /**
          * Executes an HTTP request using XMLHttpRequest, cancelling any previous request with the same identifier.
-         * 
+         *
          * @param {string} url - The URL to request
          * @param {Object} options - Optional configuration
          * @param {string} options.method - HTTP method (GET, POST, PUT, DELETE, etc.). Defaults to 'GET'.
@@ -482,11 +504,11 @@ var RequestManager = (function () {
          *                                                    Can be a string, number, or function that returns a key.
          * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
          * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-         * 
+         *
          * @example
          * // Simple GET request
          * requestManager.xhr('/api/users');
-         * 
+         *
          * @example
          * // POST request with options
          * requestManager.xhr('/api/users', {
@@ -494,13 +516,13 @@ var RequestManager = (function () {
          *   headers: { 'Content-Type': 'application/json' },
          *   body: JSON.stringify({ name: 'John' })
          * });
-         * 
+         *
          * @example
          * // Request with requestKey for custom cancellation grouping
          * requestManager.xhr('/api/users', {
          *   requestKey: 'get-users'
          * });
-         * 
+         *
          * @example
          * // Request with noCancel to allow concurrent requests
          * requestManager.xhr('/api/lazy?load=1', { noCancel: true });
@@ -508,21 +530,29 @@ var RequestManager = (function () {
          */
         xhr(url, options = {}) {
             const requestOptions = options || {};
-            const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
+            const requestId = this.#_generateRequestId(
+                url,
+                requestOptions.requestKey,
+                requestOptions.noCancel,
+                requestOptions.includeQuery
+            );
             const xhrFunction = ({ options: fetchOptions }) => {
                 // Create XMLHttpRequest
                 const xhr = new XMLHttpRequest();
                 const method = (requestOptions.method || 'GET').toUpperCase();
                 // Create a promise that wraps the XHR request
                 const xhrPromise = new Promise((resolve, reject) => {
-                    xhr.onload = function() {
+                    xhr.onload = function () {
                         if (xhr.status >= 200 && xhr.status < 300) {
                             let response = xhr.response;
-                            if (requestOptions.responseType === 'json' ||
-                                (xhr.getResponseHeader('Content-Type') && xhr.getResponseHeader('Content-Type').includes('application/json'))) {
+                            if (
+                                requestOptions.responseType === 'json' ||
+                                (xhr.getResponseHeader('Content-Type') &&
+                                    xhr.getResponseHeader('Content-Type').includes('application/json'))
+                            ) {
                                 try {
                                     response = JSON.parse(xhr.responseText);
-                                } catch (e) {
+                                } catch {
                                     response = xhr.responseText;
                                 }
                             }
@@ -531,27 +561,27 @@ var RequestManager = (function () {
                                 status: xhr.status,
                                 statusText: xhr.statusText,
                                 headers: xhr.getAllResponseHeaders(),
-                                xhr: xhr
+                                xhr: xhr,
                             });
                         } else {
                             reject({
                                 message: `Request failed with status ${xhr.status}`,
                                 status: xhr.status,
                                 statusText: xhr.statusText,
-                                xhr: xhr
+                                xhr: xhr,
                             });
                         }
                     };
-                    xhr.onerror = function() {
+                    xhr.onerror = function () {
                         reject({
                             message: 'Network error',
-                            xhr: xhr
+                            xhr: xhr,
                         });
                     };
-                    xhr.ontimeout = function() {
+                    xhr.ontimeout = function () {
                         reject({
                             message: 'Request timeout',
-                            xhr: xhr
+                            xhr: xhr,
                         });
                     };
 
@@ -565,9 +595,10 @@ var RequestManager = (function () {
                     // Set timeout
                     if (requestOptions.timeout !== undefined) xhr.timeout = requestOptions.timeout;
                     // Set headers
-                    if (requestOptions.headers) Object.keys(requestOptions.headers).forEach(key => {
-                        xhr.setRequestHeader(key, requestOptions.headers[key]);
-                    });
+                    if (requestOptions.headers)
+                        Object.keys(requestOptions.headers).forEach((key) => {
+                            xhr.setRequestHeader(key, requestOptions.headers[key]);
+                        });
 
                     // Connect abort signal to xhr.abort()
                     if (fetchOptions.signal) fetchOptions.signal.addEventListener('abort', () => xhr.abort());
@@ -582,7 +613,7 @@ var RequestManager = (function () {
 
         /**
          * Cancels a specific request by its identifier.
-         * 
+         *
          * @param {string} requestId - The unique identifier of the request to cancel
          * @returns {boolean} True if the request was found and cancelled, false otherwise
          */
@@ -623,7 +654,7 @@ var RequestManager = (function () {
          */
         addAbortListener(abortMethod, signal) {
             if (!signal) return;
-            signal.addEventListener("abort", () => {
+            signal.addEventListener('abort', () => {
                 if (typeof abortMethod === 'function') {
                     try {
                         abortMethod();
@@ -634,7 +665,7 @@ var RequestManager = (function () {
 
         /**
          * Cancels all active requests.
-         * 
+         *
          * @returns {number} The number of requests that were cancelled
          */
         cancelAll() {
@@ -648,7 +679,7 @@ var RequestManager = (function () {
 
         /**
          * Checks if a request with the given identifier is currently active.
-         * 
+         *
          * @param {string} requestId - The unique identifier to check
          * @returns {boolean} True if the request is active, false otherwise
          */
@@ -658,7 +689,7 @@ var RequestManager = (function () {
 
         /**
          * Gets the number of active requests.
-         * 
+         *
          * @returns {number} The number of currently active requests
          */
         getActiveCount() {
