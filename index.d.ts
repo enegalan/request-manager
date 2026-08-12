@@ -432,6 +432,18 @@ declare class RequestManager {
     xhr<T = any>(url: string, options?: XhrOptions): Promise<XhrResponse<T>>;
 
     /**
+     * Returns the request ID that RequestManager would assign for a URL and options.
+     *
+     * Note: with noCancel => true each call generates a new unique ID, so the value
+     * returned here will not match an already in-flight noCancel request.
+     *
+     * @param url - The URL used when starting the request
+     * @param options - Same options used for the request
+     * @returns The request identifier
+     */
+    getRequestId(url: string, options?: Pick<BaseRequestOptions, 'requestKey' | 'includeQuery' | 'noCancel'>): string;
+
+    /**
      * Cancels a specific request by its identifier.
      *
      * @param requestId - The unique identifier of the request to cancel

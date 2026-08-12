@@ -301,11 +301,13 @@ describe('RequestManager', () => {
             });
 
             let settled = false;
-            requestPromise.then(() => {
-                settled = true;
-            }).catch(() => {
-                settled = true;
-            });
+            requestPromise
+                .then(() => {
+                    settled = true;
+                })
+                .catch(() => {
+                    settled = true;
+                });
 
             const requestId = generateRequestId('verbose-test');
             requestManager.cancel(requestId);
@@ -374,11 +376,13 @@ describe('RequestManager', () => {
             });
 
             let settled = false;
-            requestPromise.then(() => {
-                settled = true;
-            }).catch(() => {
-                settled = true;
-            });
+            requestPromise
+                .then(() => {
+                    settled = true;
+                })
+                .catch(() => {
+                    settled = true;
+                });
 
             const requestId = generateRequestId('/api/verbose-runtime-test');
             verboseManager.cancel(requestId);
@@ -430,6 +434,32 @@ describe('RequestManager', () => {
 
         test('should return 0 when no active requests', () => {
             expect(requestManager.cancelAll()).toBe(0);
+        });
+    });
+
+    describe('getRequestId()', () => {
+        test('should return the same id used for URL-based requests', () => {
+            const promise = new Promise(() => {});
+            requestManager.request('/api/users', promise).catch(() => {});
+
+            const id = requestManager.getRequestId('/api/users');
+            expect(id).toBe(generateRequestId('/api/users'));
+            expect(requestManager.isActive(id)).toBe(true);
+            expect(requestManager.cancel(id)).toBe(true);
+            expect(requestManager.isActive(id)).toBe(false);
+        });
+
+        test('should respect requestKey and includeQuery', () => {
+            expect(requestManager.getRequestId('/api/a?q=1', { requestKey: 'k' })).toBe('request_k');
+            expect(requestManager.getRequestId('/api/a?q=1', { includeQuery: true })).toBe(
+                generateRequestId('/api/a?q=1', null, true)
+            );
+        });
+
+        test('raw URL is not a valid cancel id without getRequestId', () => {
+            requestManager.request('/api/users', new Promise(() => {})).catch(() => {});
+            expect(requestManager.cancel('/api/users')).toBe(false);
+            expect(requestManager.cancel(requestManager.getRequestId('/api/users'))).toBe(true);
         });
     });
 
@@ -1120,7 +1150,7 @@ describe('RequestManager', () => {
         test('should throw error if ajaxFunction is not a function', () => {
             expect(() => {
                 requestManager.ajax('not-a-function', '/api/users');
-            }).toThrow('ajaxFunction must be a function');
+            }).toThrow('ajaxFunction parameter must be a function');
         });
 
         test('should execute an ajax request with function', async () => {

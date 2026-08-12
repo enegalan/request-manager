@@ -612,6 +612,34 @@ class RequestManager {
     }
 
     /**
+     * Returns the request ID that RequestManager would assign for a URL and options.
+     *
+     * Note: with noCancel => true each call generates a new unique ID, so the value
+     * returned here will not match an already in-flight noCancel request.
+     *
+     * @param {string} url - The URL used when starting the request
+     * @param {Object} options - Same options used for the request
+     * @param {string|number|Function} options.requestKey - Optional key override
+     * @param {boolean} options.includeQuery - Keep query string in the URL-based ID
+     * @param {boolean} options.noCancel - If true, returns a new unique ID
+     * @returns {string} The request identifier
+     *
+     * @example
+     * requestManager.fetch('/api/users');
+     * const id = requestManager.getRequestId('/api/users');
+     * requestManager.cancel(id);
+     */
+    getRequestId(url, options = {}) {
+        const requestOptions = options || {};
+        return this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
+    }
+
+    /**
      * Cancels a specific request by its identifier.
      *
      * @param {string} requestId - The unique identifier of the request to cancel

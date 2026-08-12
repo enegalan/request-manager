@@ -7,8 +7,7 @@
  * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.
 
  * @param {Object} managerOptions - The options for the manager
- * @param {boolean} managerOptions.verbose - If true, cancellation rejects with a message including the request id.
- *                                          If false (default), cancellation is silent (wrapper promise does not settle).
+ * @param {boolean} managerOptions.verbose - If true, cancellation errors will include messages
  * @returns {RequestManager} A new RequestManager instance
 */
 class RequestManager {
@@ -27,8 +26,7 @@ class RequestManager {
          */
         this.activeRequests = new Map();
         /**
-         * Verbose mode: if true, cancellation rejects with a message including the request id.
-         * If false, cancellation is silent (no rejection / no console noise).
+         * Verbose mode: if true, cancellation errors will include messages
          * @type {boolean}
          */
         this.verbose = managerOptions.verbose || false;
@@ -256,7 +254,6 @@ class RequestManager {
                     rejectWrapper(error);
                     return;
                 }
-                // Cancelled + verbose: surface cancellation; otherwise stay silent
                 if (requestInfo.verbose) {
                     rejectWrapper(new Error(`Request ${requestId} was cancelled`));
                 }
@@ -615,6 +612,34 @@ class RequestManager {
     }
 
     /**
+     * Returns the request ID that RequestManager would assign for a URL and options.
+     *
+     * Note: with noCancel => true each call generates a new unique ID, so the value
+     * returned here will not match an already in-flight noCancel request.
+     *
+     * @param {string} url - The URL used when starting the request
+     * @param {Object} options - Same options used for the request
+     * @param {string|number|Function} options.requestKey - Optional key override
+     * @param {boolean} options.includeQuery - Keep query string in the URL-based ID
+     * @param {boolean} options.noCancel - If true, returns a new unique ID
+     * @returns {string} The request identifier
+     *
+     * @example
+     * requestManager.fetch('/api/users');
+     * const id = requestManager.getRequestId('/api/users');
+     * requestManager.cancel(id);
+     */
+    getRequestId(url, options = {}) {
+        const requestOptions = options || {};
+        return this.#_generateRequestId(
+            url,
+            requestOptions.requestKey,
+            requestOptions.noCancel,
+            requestOptions.includeQuery
+        );
+    }
+
+    /**
      * Cancels a specific request by its identifier.
      *
      * @param {string} requestId - The unique identifier of the request to cancel
@@ -641,7 +666,7 @@ class RequestManager {
             } catch (error) {}
         }
 
-        // Reject only in verbose mode — otherwise cancellation is silent (no console noise)
+        // Reject the wrapper promise
         if (requestInfo.rejectWrapper && this.verbose) {
             requestInfo.rejectWrapper(new Error(`Request ${requestId} was cancelled`));
         }

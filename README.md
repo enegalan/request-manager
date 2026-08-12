@@ -559,6 +559,35 @@ requestManager
     .then((response) => console.log(response.data));
 ```
 
+### `getRequestId(url, options)`
+
+Returns the request ID that RequestManager assigns for a URL and options.
+
+**Parameters:**
+
+- `url` (string): The URL used when starting the request
+- `options` (Object, optional): Same options used for the request
+    - `requestKey` (string|number|Function, optional): Key override
+    - `includeQuery` (boolean, optional): Keep query string in the URL-based ID
+    - `noCancel` (boolean, optional): If true, returns a **new** unique ID (will not match an already in-flight `noCancel` request)
+
+**Returns:** `string` — the request identifier
+
+**Example:**
+
+```javascript
+requestManager.fetch('/api/users');
+
+const id = requestManager.getRequestId('/api/users');
+if (requestManager.isActive(id)) {
+    requestManager.cancel(id);
+}
+
+// With the same options used for the request:
+const searchId = requestManager.getRequestId('/api/search?q=test', { requestKey: 'search-users' });
+requestManager.cancel(searchId);
+```
+
 ### `cancel(requestId)`
 
 Cancels a specific request by its identifier.
