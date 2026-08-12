@@ -7,7 +7,8 @@
  * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.
 
  * @param {Object} managerOptions - The options for the manager
- * @param {boolean} managerOptions.verbose - If true, cancellation errors will include messages
+ * @param {boolean} managerOptions.verbose - If true, cancellation rejects with a message including the request id.
+ *                                          If false (default), cancellation is silent (wrapper promise does not settle).
  * @returns {RequestManager} A new RequestManager instance
 */
 class RequestManager {
@@ -26,7 +27,8 @@ class RequestManager {
          */
         this.activeRequests = new Map();
         /**
-         * Verbose mode: if true, cancellation errors will include messages
+         * Verbose mode: if true, cancellation rejects with a message including the request id.
+         * If false, cancellation is silent (no rejection / no console noise).
          * @type {boolean}
          */
         this.verbose = managerOptions.verbose || false;
@@ -250,9 +252,14 @@ class RequestManager {
                 if (currentRequestInfo !== requestInfo) return;
                 // Only delete if this is still the active request
                 scope.activeRequests.delete(requestId);
-                if (!requestInfo.isCancelled) rejectWrapper(error);
-                else if (requestInfo.isCancelled && requestInfo.verbose)
-                    rejectWrapper(new Error('Request was cancelled'));
+                if (!requestInfo.isCancelled) {
+                    rejectWrapper(error);
+                    return;
+                }
+                // Cancelled + verbose: surface cancellation; otherwise stay silent
+                if (requestInfo.verbose) {
+                    rejectWrapper(new Error(`Request ${requestId} was cancelled`));
+                }
             }
         } else {
             // If requestPromise is not a promise, we can't track its completion automatically
@@ -634,7 +641,7 @@ class RequestManager {
             } catch (error) {}
         }
 
-        // Reject the wrapper promise
+        // Reject only in verbose mode — otherwise cancellation is silent (no console noise)
         if (requestInfo.rejectWrapper && this.verbose) {
             requestInfo.rejectWrapper(new Error(`Request ${requestId} was cancelled`));
         }

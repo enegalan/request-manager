@@ -23,7 +23,8 @@ export type CancelToken = (() => void) | { cancel: () => void };
  */
 export interface ManagerOptions {
     /**
-     * If true, cancellation errors will include messages globally for all requests
+     * If true, cancellation rejects the wrapper promise with a message that includes the request id.
+     * If false (default), cancellation is silent: the wrapper promise does not settle and nothing is logged.
      */
     verbose?: boolean;
 }
@@ -253,7 +254,7 @@ declare class RequestManager {
     activeRequests: Map<string, any>;
 
     /**
-     * Verbose mode: if true, cancellation errors will include messages
+     * Verbose mode: if true, cancellation rejects with a message including the request id
      */
     verbose: boolean;
 

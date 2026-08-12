@@ -69,14 +69,14 @@ const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/
 ```javascript
 import RequestManager from '@enegalan/request-manager';
 
-const requestManager = new RequestManager();
+const requestManager = new RequestManager({ verbose: true });
 
 requestManager
     .fetch('/api/users')
     .then((response) => response.json())
     .then((data) => console.log(data))
     .catch((error) => {
-        if (error.message === 'Request was cancelled') {
+        if (error.message.includes('was cancelled')) {
             console.log('Request was cancelled');
         } else {
             console.error('Request failed:', error);
@@ -358,7 +358,7 @@ Creates a new RequestManager instance.
 **Parameters:**
 
 - `options` (Object, optional): Configuration options
-    - `verbose` (boolean, optional): If true, cancellation errors will include messages globally for all requests.
+    - `verbose` (boolean, optional): If true, cancellation rejects with a message that includes the request id. If false (default), cancellation is silent (wrapper promise does not settle; nothing is logged).
 
 **Example:**
 
@@ -470,7 +470,7 @@ Executes an HTTP request using a custom ajax method function, cancelling any pre
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
-    - `verbose` (boolean): If true, cancellation errors will include messages
+    - `verbose` (boolean): If true, cancellation rejects with a message that includes the request id
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - Any other properties are passed to the ajax method function
@@ -523,7 +523,7 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
     - `timeout` (number): Request timeout in milliseconds
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
-    - `verbose` (boolean): If true, cancellation errors will include messages
+    - `verbose` (boolean): If true, cancellation rejects with a message that includes the request id
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
 
@@ -634,17 +634,17 @@ Sets the manager options.
 **Parameters:**
 
 - `options` (Object): Configuration options
-    - `verbose` (boolean, optional): If true, cancellation errors will include messages
+    - `verbose` (boolean, optional): If true, cancellation rejects with a message that includes the request id. If false (default), cancellation is silent.
 
 **Example:**
 
 ```javascript
 const requestManager = new RequestManager();
 
-// Enable verbose mode at runtime
+// Enable verbose cancellation messages at runtime
 requestManager.setOptions({ verbose: true });
 
-// Disable verbose mode
+// Silent cancellation (default) — no rejection / no console noise
 requestManager.setOptions({ verbose: false });
 ```
 
