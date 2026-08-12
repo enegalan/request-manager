@@ -250,9 +250,13 @@ class RequestManager {
                 if (currentRequestInfo !== requestInfo) return;
                 // Only delete if this is still the active request
                 scope.activeRequests.delete(requestId);
-                if (!requestInfo.isCancelled) rejectWrapper(error);
-                else if (requestInfo.isCancelled && requestInfo.verbose)
-                    rejectWrapper(new Error('Request was cancelled'));
+                if (!requestInfo.isCancelled) {
+                    rejectWrapper(error);
+                    return;
+                }
+                if (requestInfo.verbose) {
+                    rejectWrapper(new Error(`Request ${requestId} was cancelled`));
+                }
             }
         } else {
             // If requestPromise is not a promise, we can't track its completion automatically

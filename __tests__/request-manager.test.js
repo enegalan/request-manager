@@ -300,21 +300,22 @@ describe('RequestManager', () => {
                 abortController: controller,
             });
 
-            let rejected = false;
-            requestPromise.catch(() => {
-                rejected = true;
+            let settled = false;
+            requestPromise.then(() => {
+                settled = true;
+            }).catch(() => {
+                settled = true;
             });
 
-            requestManager.cancel('verbose-test');
+            const requestId = generateRequestId('verbose-test');
+            requestManager.cancel(requestId);
 
-            // Wait a bit to see if rejection happens
             await new Promise((resolve) => setTimeout(resolve, 10));
 
-            // With verbose false, the wrapper promise should not be rejected
-            expect(rejected).toBe(false);
+            expect(settled).toBe(false);
         });
 
-        test('should reject wrapper promise when verbose is true globally', async () => {
+        test('should reject wrapper promise with request id when verbose is true globally', async () => {
             const verboseManager = new RequestManager({ verbose: true });
             const controller = new AbortController();
             const promise = new Promise(() => {}); // Never resolves
@@ -331,17 +332,15 @@ describe('RequestManager', () => {
             const requestId = generateRequestId('/api/verbose-global-test');
             verboseManager.cancel(requestId);
 
-            // Wait a bit for the rejection
             await new Promise((resolve) => setTimeout(resolve, 10));
 
-            expect(errorMessage).toBe('Request was cancelled');
+            expect(errorMessage).toBe(`Request ${requestId} was cancelled`);
         });
 
-        test('should reject wrapper promise when verbose is enabled via setOptions', async () => {
+        test('should reject wrapper promise with request id when verbose is enabled via setOptions', async () => {
             const controller = new AbortController();
             const promise = new Promise(() => {}); // Never resolves
 
-            // Enable verbose via setOptions
             requestManager.setOptions({ verbose: true });
 
             const requestPromise = requestManager.request('/api/verbose-setmanageroptions-test', promise, {
@@ -356,12 +355,10 @@ describe('RequestManager', () => {
             const requestId = generateRequestId('/api/verbose-setmanageroptions-test');
             requestManager.cancel(requestId);
 
-            // Wait a bit for the rejection
             await new Promise((resolve) => setTimeout(resolve, 10));
 
-            expect(errorMessage).toBe('Request was cancelled');
+            expect(errorMessage).toBe(`Request ${requestId} was cancelled`);
 
-            // Reset verbose
             requestManager.setOptions({ verbose: false });
         });
 
@@ -370,26 +367,25 @@ describe('RequestManager', () => {
             const controller = new AbortController();
             const promise = new Promise(() => {}); // Never resolves
 
-            // Disable verbose via setOptions
             verboseManager.setOptions({ verbose: false });
 
             const requestPromise = verboseManager.request('/api/verbose-runtime-test', promise, {
                 abortController: controller,
             });
 
-            let rejected = false;
-            requestPromise.catch(() => {
-                rejected = true;
+            let settled = false;
+            requestPromise.then(() => {
+                settled = true;
+            }).catch(() => {
+                settled = true;
             });
 
             const requestId = generateRequestId('/api/verbose-runtime-test');
             verboseManager.cancel(requestId);
 
-            // Wait a bit to see if rejection happens
             await new Promise((resolve) => setTimeout(resolve, 10));
 
-            // With verbose disabled via setOptions, should not reject
-            expect(rejected).toBe(false);
+            expect(settled).toBe(false);
         });
 
         test('setOptions should update managerOptions', () => {
