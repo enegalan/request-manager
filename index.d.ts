@@ -199,7 +199,9 @@ export type RequestFunction<T = any> = (params: RequestFunctionOptions) => Promi
 /**
  * Ajax function type
  */
-export type AjaxFunction<T = any> = (params: { url: string; signal?: AbortSignal } & Record<string, any>) => Promise<T> & { abort?: () => void };
+export type AjaxFunction<T = any> = (
+    params: { url: string; signal?: AbortSignal } & Record<string, any>
+) => Promise<T> & { abort?: () => void };
 
 /**
  * Axios instance interface (minimal definition for compatibility)
@@ -287,7 +289,7 @@ declare class RequestManager {
      * Creates an AbortController and returns its signal.
      * The AbortController is stored internally and will be used by the next request() call.
      * @returns The signal from a new AbortController
-     * 
+     *
      * @example
      * const signal = requestManager.getSignal();
      * requestManager.request('/api/users', fetch('/api/users', { signal }));
@@ -303,20 +305,20 @@ declare class RequestManager {
 
     /**
      * Executes an HTTP request, cancelling any previous request with the same identifier.
-     * 
+     *
      * @param url - The URL to request
      * @param requestPromise - The request promise, function that returns a promise, or URL string
      * @param options - Optional configuration
      * @returns A Promise that resolves/rejects based on the most recent request
-     * 
+     *
      * @example
      * // Request with Promise
      * requestManager.request('/api/users', axios.get('/api/users'));
-     * 
+     *
      * @example
      * // Request with Function
      * requestManager.request('/api/users', ({ options }) => fetch('/api/users', options));
-     * 
+     *
      * @example
      * // Request with noCancel for concurrent requests
      * requestManager.request('/api/lazy', fetch('/api/lazy'), { noCancel: true });
@@ -329,15 +331,15 @@ declare class RequestManager {
 
     /**
      * Executes an HTTP request using fetch, cancelling any previous request with the same identifier.
-     * 
+     *
      * @param url - The URL to fetch
      * @param options - Optional configuration (fetch options + RequestManager options)
      * @returns A Promise that resolves/rejects based on the most recent request
-     * 
+     *
      * @example
      * // Simple GET request
      * requestManager.fetch('/api/users');
-     * 
+     *
      * @example
      * // POST request with options
      * requestManager.fetch('/api/users', {
@@ -350,21 +352,21 @@ declare class RequestManager {
 
     /**
      * Executes an HTTP request using axios, cancelling any previous request with the same identifier.
-     * 
+     *
      * @param url - The URL to request
      * @param options - Optional configuration (axios options + RequestManager options)
      * @param axiosInstance - Optional axios instance to use. If not provided, uses global axios.
      * @returns A Promise that resolves/rejects based on the most recent request
-     * 
+     *
      * @example
      * // Simple GET request (uses global axios)
      * requestManager.axios('/api/users');
-     * 
+     *
      * @example
      * // With custom axios instance
      * const myAxios = axios.create({ baseURL: 'https://api.example.com' });
      * requestManager.axios('/users', {}, myAxios);
-     * 
+     *
      * @example
      * // POST request with options
      * requestManager.axios('/api/users', {
@@ -380,12 +382,12 @@ declare class RequestManager {
 
     /**
      * Executes an HTTP request using a custom ajax method, cancelling any previous request with the same identifier.
-     * 
+     *
      * @param ajaxFunction - A function that receives { url, ...options } and returns a Promise
      * @param url - The URL to request
      * @param options - Optional configuration
      * @returns A Promise that resolves/rejects based on the most recent request
-     * 
+     *
      * @example
      * // Using with jQuery.ajax
      * requestManager.ajax(
@@ -402,15 +404,15 @@ declare class RequestManager {
 
     /**
      * Executes an HTTP request using XMLHttpRequest, cancelling any previous request with the same identifier.
-     * 
+     *
      * @param url - The URL to request
      * @param options - Optional configuration
      * @returns A Promise that resolves/rejects based on the most recent request
-     * 
+     *
      * @example
      * // Simple GET request
      * requestManager.xhr('/api/users');
-     * 
+     *
      * @example
      * // POST request with options
      * requestManager.xhr('/api/users', {
@@ -423,7 +425,7 @@ declare class RequestManager {
 
     /**
      * Cancels a specific request by its identifier.
-     * 
+     *
      * @param requestId - The unique identifier of the request to cancel
      * @returns True if the request was found and cancelled, false otherwise
      */
@@ -432,7 +434,7 @@ declare class RequestManager {
     /**
      * Link abort signal with HTTP client abort method.
      * Useful for custom HTTP clients that only support the abort method to cancel requests.
-     * 
+     *
      * @param abortMethod - The abort method to call when the signal is aborted
      * @param signal - The signal to listen to
      */
@@ -440,14 +442,14 @@ declare class RequestManager {
 
     /**
      * Cancels all active requests.
-     * 
+     *
      * @returns The number of requests that were cancelled
      */
     cancelAll(): number;
 
     /**
      * Checks if a request with the given identifier is currently active.
-     * 
+     *
      * @param requestId - The unique identifier to check
      * @returns True if the request is active, false otherwise
      */
@@ -455,7 +457,7 @@ declare class RequestManager {
 
     /**
      * Gets the number of active requests.
-     * 
+     *
      * @returns The number of currently active requests
      */
     getActiveCount(): number;

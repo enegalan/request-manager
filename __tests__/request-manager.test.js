@@ -68,20 +68,22 @@ describe('RequestManager', () => {
                 }, 100);
             });
 
-            requestManager.request('same-id', promise1, {
-                abortController: controller1
-            }).catch(() => {
-                // First request should be cancelled
-            });
+            requestManager
+                .request('same-id', promise1, {
+                    abortController: controller1,
+                })
+                .catch(() => {
+                    // First request should be cancelled
+                });
 
             // Wait a bit before making second request
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const controller2 = new AbortController();
             const promise2 = Promise.resolve('second');
 
             const result = await requestManager.request('same-id', promise2, {
-                abortController: controller2
+                abortController: controller2,
             });
 
             expect(result).toBe('second');
@@ -93,9 +95,7 @@ describe('RequestManager', () => {
         test('should handle request errors', async () => {
             const errorPromise = Promise.reject(new Error('Request failed'));
 
-            await expect(
-                requestManager.request('error-id', errorPromise)
-            ).rejects.toThrow('Request failed');
+            await expect(requestManager.request('error-id', errorPromise)).rejects.toThrow('Request failed');
         });
     });
 
@@ -138,21 +138,23 @@ describe('RequestManager', () => {
                 setTimeout(() => resolve('first'), 100);
             });
 
-            requestManager.request('/api/test', promise1, {
-                abortController: controller1,
-                requestKey: 'test-key'
-            }).catch(() => {
-                firstCancelled = true;
-            });
+            requestManager
+                .request('/api/test', promise1, {
+                    abortController: controller1,
+                    requestKey: 'test-key',
+                })
+                .catch(() => {
+                    firstCancelled = true;
+                });
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const controller2 = new AbortController();
             const promise2 = Promise.resolve('second');
 
             const result = await requestManager.request('/api/test', promise2, {
                 abortController: controller2,
-                requestKey: 'test-key'
+                requestKey: 'test-key',
             });
 
             expect(result).toBe('second');
@@ -167,21 +169,23 @@ describe('RequestManager', () => {
                 setTimeout(() => resolve('first'), 100);
             });
 
-            requestManager.request('/api/test', promise1, {
-                abortController: controller1,
-                requestKey: () => 'dynamic-key'
-            }).catch(() => {
-                firstCancelled = true;
-            });
+            requestManager
+                .request('/api/test', promise1, {
+                    abortController: controller1,
+                    requestKey: () => 'dynamic-key',
+                })
+                .catch(() => {
+                    firstCancelled = true;
+                });
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const controller2 = new AbortController();
             const promise2 = Promise.resolve('second');
 
             const result = await requestManager.request('/api/test', promise2, {
                 abortController: controller2,
-                requestKey: () => 'dynamic-key'
+                requestKey: () => 'dynamic-key',
             });
 
             expect(result).toBe('second');
@@ -194,7 +198,7 @@ describe('RequestManager', () => {
             const result = await requestManager.request('/api/test', promise, {
                 requestKey: () => {
                     throw new Error('Key generation failed');
-                }
+                },
             });
 
             expect(result).toBe('success');
@@ -208,21 +212,23 @@ describe('RequestManager', () => {
                 setTimeout(() => resolve('first'), 100);
             });
 
-            requestManager.request('/api/test', promise1, {
-                abortController: controller1,
-                requestKey: 12345
-            }).catch(() => {
-                firstCancelled = true;
-            });
+            requestManager
+                .request('/api/test', promise1, {
+                    abortController: controller1,
+                    requestKey: 12345,
+                })
+                .catch(() => {
+                    firstCancelled = true;
+                });
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const controller2 = new AbortController();
             const promise2 = Promise.resolve('second');
 
             const result = await requestManager.request('/api/test', promise2, {
                 abortController: controller2,
-                requestKey: 12345
+                requestKey: 12345,
             });
 
             expect(result).toBe('second');
@@ -236,7 +242,7 @@ describe('RequestManager', () => {
             const promise = new Promise(() => {}); // Never resolves
 
             const requestPromise = requestManager.request('/api/cancel-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
             requestPromise.catch(() => {}); // Handle cancellation error
 
@@ -260,7 +266,7 @@ describe('RequestManager', () => {
             const promise = new Promise(() => {});
 
             const requestPromise = requestManager.request('/api/cancel-token-test', promise, {
-                cancelToken: cancelFn
+                cancelToken: cancelFn,
             });
             requestPromise.catch(() => {}); // Handle cancellation error
 
@@ -274,13 +280,13 @@ describe('RequestManager', () => {
             const cancelToken = {
                 cancel: () => {
                     cancelled = true;
-                }
+                },
             };
 
             const promise = new Promise(() => {});
 
             const requestPromise = requestManager.request('/api/cancel-object-test', promise, {
-                cancelToken: cancelToken
+                cancelToken: cancelToken,
             });
             requestPromise.catch(() => {}); // Handle cancellation error
 
@@ -294,7 +300,7 @@ describe('RequestManager', () => {
             const promise = new Promise(() => {}); // Never resolves
 
             const requestPromise = requestManager.request('verbose-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
 
             let rejected = false;
@@ -303,10 +309,10 @@ describe('RequestManager', () => {
             });
 
             requestManager.cancel('verbose-test');
-            
+
             // Wait a bit to see if rejection happens
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
             // With verbose false, the wrapper promise should not be rejected
             expect(rejected).toBe(false);
         });
@@ -317,7 +323,7 @@ describe('RequestManager', () => {
             const promise = new Promise(() => {}); // Never resolves
 
             const requestPromise = verboseManager.request('/api/verbose-global-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
 
             let errorMessage = null;
@@ -327,10 +333,10 @@ describe('RequestManager', () => {
 
             const requestId = generateRequestId('/api/verbose-global-test');
             verboseManager.cancel(requestId);
-            
+
             // Wait a bit for the rejection
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
             expect(errorMessage).toBe('Request was cancelled');
         });
 
@@ -342,7 +348,7 @@ describe('RequestManager', () => {
             requestManager.setOptions({ verbose: true });
 
             const requestPromise = requestManager.request('/api/verbose-setmanageroptions-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
 
             let errorMessage = null;
@@ -352,10 +358,10 @@ describe('RequestManager', () => {
 
             const requestId = generateRequestId('/api/verbose-setmanageroptions-test');
             requestManager.cancel(requestId);
-            
+
             // Wait a bit for the rejection
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
             expect(errorMessage).toBe('Request was cancelled');
 
             // Reset verbose
@@ -371,7 +377,7 @@ describe('RequestManager', () => {
             verboseManager.setOptions({ verbose: false });
 
             const requestPromise = verboseManager.request('/api/verbose-runtime-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
 
             let rejected = false;
@@ -381,10 +387,10 @@ describe('RequestManager', () => {
 
             const requestId = generateRequestId('/api/verbose-runtime-test');
             verboseManager.cancel(requestId);
-            
+
             // Wait a bit to see if rejection happens
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
             // With verbose disabled via setOptions, should not reject
             expect(rejected).toBe(false);
         });
@@ -392,7 +398,7 @@ describe('RequestManager', () => {
         test('setOptions should update managerOptions', () => {
             const manager = new RequestManager();
             expect(manager.getOptions()).toEqual({});
-            
+
             manager.setOptions({ verbose: true });
             expect(manager.getOptions()).toEqual({ verbose: true });
             expect(manager.verbose).toBe(true);
@@ -412,7 +418,7 @@ describe('RequestManager', () => {
             const req1 = requestManager.request('req1', promise1, { abortController: controller1 });
             const req2 = requestManager.request('req2', promise2, { abortController: controller2 });
             const req3 = requestManager.request('req3', promise3, { abortController: controller3 });
-            
+
             // Handle cancellation errors
             req1.catch(() => {});
             req2.catch(() => {});
@@ -490,7 +496,7 @@ describe('RequestManager', () => {
             // Wait for the promise to resolve
             await request2Promise;
             // Wait a bit more for cleanup
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(requestManager.getActiveCount()).toBe(1);
         });
@@ -502,7 +508,7 @@ describe('RequestManager', () => {
             const promise = new Promise(() => {});
 
             requestManager.request('clear-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
 
             expect(requestManager.getActiveCount()).toBe(1);
@@ -515,7 +521,7 @@ describe('RequestManager', () => {
     describe('getAbortController()', () => {
         test('should create a new AbortController when none exists', () => {
             const abortController = requestManager.getAbortController();
-            
+
             expect(abortController).toBeInstanceOf(AbortController);
             expect(abortController.signal).toBeInstanceOf(AbortSignal);
             expect(abortController.signal.aborted).toBe(false);
@@ -524,16 +530,16 @@ describe('RequestManager', () => {
         test('should return the same AbortController on subsequent calls if not aborted', () => {
             const abortController1 = requestManager.getAbortController();
             const abortController2 = requestManager.getAbortController();
-            
+
             expect(abortController1).toBe(abortController2);
         });
 
         test('should create a new AbortController if the current one is aborted', () => {
             const abortController1 = requestManager.getAbortController();
             abortController1.abort();
-            
+
             const abortController2 = requestManager.getAbortController();
-            
+
             expect(abortController1).not.toBe(abortController2);
             expect(abortController1.signal.aborted).toBe(true);
             expect(abortController2.signal.aborted).toBe(false);
@@ -542,11 +548,11 @@ describe('RequestManager', () => {
         test('should work with request() method', async () => {
             const abortController = requestManager.getAbortController();
             const promise = Promise.resolve('success');
-            
+
             const result = await requestManager.request('test-url', promise, {
-                abortController: abortController
+                abortController: abortController,
             });
-            
+
             expect(result).toBe('success');
         });
     });
@@ -554,7 +560,7 @@ describe('RequestManager', () => {
     describe('getSignal()', () => {
         test('should return an AbortSignal from getAbortController', () => {
             const signal = requestManager.getSignal();
-            
+
             expect(signal).toBeInstanceOf(AbortSignal);
             expect(signal.aborted).toBe(false);
         });
@@ -562,7 +568,7 @@ describe('RequestManager', () => {
         test('should return signal from the same AbortController on subsequent calls if not aborted', () => {
             const signal1 = requestManager.getSignal();
             const signal2 = requestManager.getSignal();
-            
+
             expect(signal1).toBe(signal2);
         });
 
@@ -570,9 +576,9 @@ describe('RequestManager', () => {
             const signal1 = requestManager.getSignal();
             const abortController = requestManager.getAbortController();
             abortController.abort();
-            
+
             const signal2 = requestManager.getSignal();
-            
+
             expect(signal1).not.toBe(signal2);
             expect(signal1.aborted).toBe(true);
             expect(signal2.aborted).toBe(false);
@@ -580,7 +586,7 @@ describe('RequestManager', () => {
 
         test('should work with fetch() method', async () => {
             const signal = requestManager.getSignal();
-            
+
             // Mock fetch for testing
             let fetchCalled = false;
             let fetchSignal = null;
@@ -589,16 +595,16 @@ describe('RequestManager', () => {
                 fetchSignal = options.signal;
                 return Promise.resolve({
                     ok: true,
-                    json: () => Promise.resolve({ data: 'test' })
+                    json: () => Promise.resolve({ data: 'test' }),
                 });
             };
-            
+
             const result = await requestManager.request('/api/test', fetch('/api/test', { signal }));
-            
+
             expect(fetchCalled).toBe(true);
             expect(fetchSignal).toBe(signal);
             expect(result.ok).toBe(true);
-            
+
             // Cleanup
             delete global.fetch;
         });
@@ -606,7 +612,7 @@ describe('RequestManager', () => {
         test('should allow manual abort of the signal', () => {
             const signal = requestManager.getSignal();
             const abortController = requestManager.getAbortController();
-            
+
             expect(signal.aborted).toBe(false);
             abortController.abort();
             expect(signal.aborted).toBe(true);
@@ -628,7 +634,7 @@ describe('RequestManager', () => {
             let fetchCalled = false;
             let fetchUrl = null;
             let fetchOptions = null;
-            
+
             global.fetch = (url, options) => {
                 fetchCalled = true;
                 fetchUrl = url;
@@ -636,12 +642,12 @@ describe('RequestManager', () => {
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: 'success' })
+                    json: () => Promise.resolve({ data: 'success' }),
                 });
             };
-            
+
             const result = await requestManager.fetch('/api/users');
-            
+
             expect(fetchCalled).toBe(true);
             expect(fetchUrl).toBe('/api/users');
             expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
@@ -650,24 +656,24 @@ describe('RequestManager', () => {
 
         test('should pass fetch options correctly', async () => {
             let fetchOptions = null;
-            
+
             global.fetch = (url, options) => {
                 fetchOptions = options;
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: 'success' })
+                    json: () => Promise.resolve({ data: 'success' }),
                 });
             };
-            
+
             const options = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: 'John' })
+                body: JSON.stringify({ name: 'John' }),
             };
-            
+
             await requestManager.fetch('/api/users', options);
-            
+
             expect(fetchOptions.method).toBe('POST');
             expect(fetchOptions.headers).toEqual({ 'Content-Type': 'application/json' });
             expect(fetchOptions.body).toBe(JSON.stringify({ name: 'John' }));
@@ -677,23 +683,24 @@ describe('RequestManager', () => {
         test('should cancel previous request with same URL', async () => {
             const controller1 = new AbortController();
             const promise1 = new Promise(() => {}); // Never resolves
-            
+
             global.fetch = () => promise1;
-            
+
             const request1 = requestManager.fetch('/api/users', {
-                abortController: controller1
+                abortController: controller1,
             });
             request1.catch(() => {}); // Handle cancellation
-            
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
-            global.fetch = () => Promise.resolve({
-                ok: true,
-                json: () => Promise.resolve({ data: 'second' })
-            });
-            
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            global.fetch = () =>
+                Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ data: 'second' }),
+                });
+
             const result = await requestManager.fetch('/api/users');
-            
+
             expect(controller1.signal.aborted).toBe(true);
             expect(result.ok).toBe(true);
         });
@@ -701,26 +708,27 @@ describe('RequestManager', () => {
         test('should use requestKey for cancellation grouping', async () => {
             const controller1 = new AbortController();
             const promise1 = new Promise(() => {}); // Never resolves
-            
+
             global.fetch = () => promise1;
-            
+
             const request1 = requestManager.fetch('/api/users?page=1', {
                 abortController: controller1,
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
             request1.catch(() => {}); // Handle cancellation
-            
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
-            global.fetch = () => Promise.resolve({
-                ok: true,
-                json: () => Promise.resolve({ data: 'second' })
-            });
-            
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            global.fetch = () =>
+                Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({ data: 'second' }),
+                });
+
             const result = await requestManager.fetch('/api/users?page=2', {
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
-            
+
             expect(controller1.signal.aborted).toBe(true);
             expect(result.ok).toBe(true);
         });
@@ -735,9 +743,9 @@ describe('RequestManager', () => {
                 receivedOptions = options;
                 return Promise.resolve('success');
             };
-            
+
             const result = await requestManager.request('/api/test', mockFunction);
-            
+
             expect(callCount).toBe(1);
             expect(receivedOptions).toBeDefined();
             expect(receivedOptions.signal).toBeInstanceOf(AbortSignal);
@@ -750,12 +758,12 @@ describe('RequestManager', () => {
                 receivedOptions = options;
                 return Promise.resolve('success');
             };
-            
+
             await requestManager.request('/api/test', mockFunction, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
             });
-            
+
             expect(receivedOptions.method).toBe('POST');
             expect(receivedOptions.headers).toEqual({ 'Content-Type': 'application/json' });
             expect(receivedOptions.signal).toBeInstanceOf(AbortSignal);
@@ -764,7 +772,7 @@ describe('RequestManager', () => {
         test('should cancel previous request when function is used', async () => {
             const controller1 = new AbortController();
             let cancelled = false;
-            
+
             const function1 = ({ options }) => {
                 return new Promise((resolve, reject) => {
                     options.signal.addEventListener('abort', () => {
@@ -774,17 +782,17 @@ describe('RequestManager', () => {
                     setTimeout(() => resolve('first'), 100);
                 });
             };
-            
+
             const request1 = requestManager.request('/api/test', function1, {
-                abortController: controller1
+                abortController: controller1,
             });
             request1.catch(() => {}); // Handle cancellation
-            
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
             const function2 = ({ options }) => Promise.resolve('second');
             const result = await requestManager.request('/api/test', function2);
-            
+
             expect(cancelled).toBe(true);
             expect(controller1.signal.aborted).toBe(true);
             expect(result).toBe('second');
@@ -796,9 +804,9 @@ describe('RequestManager', () => {
                 send: () => {},
                 onload: null,
                 onerror: null,
-                responseText: 'success'
+                responseText: 'success',
             };
-            
+
             const customFunction = ({ options }) => {
                 return new Promise((resolve, reject) => {
                     mockXHR.open('GET', '/api/data');
@@ -810,15 +818,15 @@ describe('RequestManager', () => {
                             resolve(mockXHR.responseText);
                         }
                     }, 10);
-                    
+
                     options.signal.addEventListener('abort', () => {
                         reject(new Error('Request was cancelled'));
                     });
                 });
             };
-            
+
             const result = await requestManager.request('/api/data', customFunction);
-            
+
             expect(result).toBe('success');
         });
     });
@@ -838,7 +846,7 @@ describe('RequestManager', () => {
             let fetchCalled = false;
             let fetchUrl = null;
             let fetchOptions = null;
-            
+
             global.fetch = (url, options) => {
                 fetchCalled = true;
                 fetchUrl = url;
@@ -846,12 +854,12 @@ describe('RequestManager', () => {
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: 'success' })
+                    json: () => Promise.resolve({ data: 'success' }),
                 });
             };
-            
+
             const result = await requestManager.request('/api/users', '/api/users');
-            
+
             expect(fetchCalled).toBe(true);
             expect(fetchUrl).toBe('/api/users');
             expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
@@ -860,21 +868,21 @@ describe('RequestManager', () => {
 
         test('should pass options to fetch when URL string is provided', async () => {
             let fetchOptions = null;
-            
+
             global.fetch = (url, options) => {
                 fetchOptions = options;
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: 'success' })
+                    json: () => Promise.resolve({ data: 'success' }),
                 });
             };
-            
+
             await requestManager.request('/api/users', '/api/users', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
             });
-            
+
             expect(fetchOptions.method).toBe('POST');
             expect(fetchOptions.headers).toEqual({ 'Content-Type': 'application/json' });
             expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
@@ -890,7 +898,7 @@ describe('RequestManager', () => {
             const results = await Promise.all([
                 requestManager.request('id1', promise1),
                 requestManager.request('id2', promise2),
-                requestManager.request('id3', promise3)
+                requestManager.request('id3', promise3),
             ]);
 
             expect(results).toEqual(['result1', 'result2', 'result3']);
@@ -906,26 +914,28 @@ describe('RequestManager', () => {
                 setTimeout(() => resolve('first'), 100);
             });
 
-            requestManager.request('same-id', promise1, {
-                abortController: controller1
-            })
-            .then(result => results.push(result))
-            .catch(error => errors.push(error));
+            requestManager
+                .request('same-id', promise1, {
+                    abortController: controller1,
+                })
+                .then((result) => results.push(result))
+                .catch((error) => errors.push(error));
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const controller2 = new AbortController();
             const promise2 = new Promise((resolve) => {
                 setTimeout(() => resolve('second'), 50);
             });
 
-            requestManager.request('same-id', promise2, {
-                abortController: controller2
-            })
-            .then(result => results.push(result))
-            .catch(error => errors.push(error));
+            requestManager
+                .request('same-id', promise2, {
+                    abortController: controller2,
+                })
+                .then((result) => results.push(result))
+                .catch((error) => errors.push(error));
 
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise((resolve) => setTimeout(resolve, 150));
 
             expect(results).toContain('second');
             expect(results).not.toContain('first');
@@ -937,7 +947,7 @@ describe('RequestManager', () => {
             const promise = Promise.resolve({ status: 200, data: 'success' });
 
             const result = await requestManager.request('fetch-test', promise, {
-                abortController: controller
+                abortController: controller,
             });
 
             expect(result).toEqual({ status: 200, data: 'success' });
@@ -960,9 +970,9 @@ describe('RequestManager', () => {
                         const cancelFn = () => {};
                         return {
                             token: 'mock-token',
-                            cancel: cancelFn
+                            cancel: cancelFn,
                         };
-                    }
+                    },
                 },
                 get: (url, options) => {
                     axiosGetCalled = true;
@@ -970,7 +980,7 @@ describe('RequestManager', () => {
                     return Promise.resolve({ data: 'success', status: 200 });
                 },
                 post: () => Promise.resolve({ data: 'created', status: 201 }),
-                isCancel: (error) => error && error.__CANCEL__ === true
+                isCancel: (error) => error && error.__CANCEL__ === true,
             };
         });
 
@@ -991,7 +1001,7 @@ describe('RequestManager', () => {
         test('should pass axios options correctly', async () => {
             const options = {
                 headers: { 'Content-Type': 'application/json' },
-                params: { page: 1 }
+                params: { page: 1 },
             };
 
             await requestManager.axios('/api/users', options);
@@ -1009,7 +1019,7 @@ describe('RequestManager', () => {
             const request1 = requestManager.axios('/api/users');
             request1.catch(() => {}); // Handle cancellation
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             global.axios.get = () => Promise.resolve({ data: 'second', status: 200 });
 
@@ -1022,16 +1032,16 @@ describe('RequestManager', () => {
             global.axios.get = () => new Promise(() => {}); // Never resolves
 
             const request1 = requestManager.axios('/api/users?page=1', {
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
             request1.catch(() => {}); // Handle cancellation
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             global.axios.get = () => Promise.resolve({ data: 'second', status: 200 });
 
             const result = await requestManager.axios('/api/users?page=2', {
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
 
             expect(result.data).toBe('second');
@@ -1040,21 +1050,21 @@ describe('RequestManager', () => {
         test('should use custom axios instance when provided as third parameter', async () => {
             let customAxiosCalled = false;
             let customAxiosArgs = null;
-            
+
             const customAxiosInstance = {
                 CancelToken: {
                     source: () => {
                         return {
                             token: 'custom-token',
-                            cancel: () => {}
+                            cancel: () => {},
                         };
-                    }
+                    },
                 },
                 get: (url, options) => {
                     customAxiosCalled = true;
                     customAxiosArgs = { url, options };
                     return Promise.resolve({ data: 'custom-success', status: 200 });
-                }
+                },
             };
 
             const result = await requestManager.axios('/api/users', {}, customAxiosInstance);
@@ -1119,7 +1129,7 @@ describe('RequestManager', () => {
 
             await requestManager.ajax(ajaxFunction, '/api/users', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
             });
 
             expect(ajaxOptions.method).toBe('POST');
@@ -1142,12 +1152,12 @@ describe('RequestManager', () => {
             };
 
             const request1 = requestManager.ajax(ajaxFunction1, '/api/users', {
-                abortController: controller1
+                abortController: controller1,
             });
             request1.catch(() => {}); // Handle cancellation
 
             // Wait for the request to be registered
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const ajaxFunction2 = ({ url, ...options }) => {
                 const promise = Promise.resolve('second');
@@ -1157,7 +1167,7 @@ describe('RequestManager', () => {
             const result = await requestManager.ajax(ajaxFunction2, '/api/users');
 
             // Wait a bit to see if first request was cancelled
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise((resolve) => setTimeout(resolve, 150));
 
             // The first request should be cancelled (signal aborted)
             expect(controller1.signal.aborted).toBe(true);
@@ -1182,12 +1192,12 @@ describe('RequestManager', () => {
 
             const request1 = requestManager.ajax(ajaxFunction1, '/api/users?page=1', {
                 abortController: controller1,
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
             request1.catch(() => {}); // Handle cancellation
 
             // Wait for the request to be registered
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const ajaxFunction2 = ({ url, ...options }) => {
                 const promise = Promise.resolve('second');
@@ -1195,11 +1205,11 @@ describe('RequestManager', () => {
                 return promise;
             };
             const result = await requestManager.ajax(ajaxFunction2, '/api/users?page=2', {
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
 
             // Wait a bit to see if first request was cancelled
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise((resolve) => setTimeout(resolve, 150));
 
             // The first request should be cancelled (signal aborted)
             expect(controller1.signal.aborted).toBe(true);
@@ -1214,7 +1224,7 @@ describe('RequestManager', () => {
             let sendCalled = false;
             let openArgs = null;
             let sendArgs = null;
-            
+
             const xhrMock = {
                 open: (method, url, async) => {
                     openCalled = true;
@@ -1233,10 +1243,10 @@ describe('RequestManager', () => {
                 statusText: 'OK',
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
@@ -1267,7 +1277,7 @@ describe('RequestManager', () => {
             let setRequestHeaderArgs = [];
             let openArgs = null;
             let sendArgs = null;
-            
+
             const xhrMock = {
                 open: (method, url, async) => {
                     openCalled = true;
@@ -1289,17 +1299,17 @@ describe('RequestManager', () => {
                 statusText: 'Created',
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const options = {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: 'John' })
+                body: JSON.stringify({ name: 'John' }),
             };
 
             const resultPromise = requestManager.xhr('/api/users', options);
@@ -1332,10 +1342,10 @@ describe('RequestManager', () => {
                 statusText: 'Internal Server Error',
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
@@ -1349,7 +1359,7 @@ describe('RequestManager', () => {
                 message: 'Request failed with status 500',
                 status: 500,
                 statusText: 'Internal Server Error',
-                xhr: xhrMock
+                xhr: xhrMock,
             });
         });
 
@@ -1362,10 +1372,10 @@ describe('RequestManager', () => {
                 getResponseHeader: () => null,
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
@@ -1377,7 +1387,7 @@ describe('RequestManager', () => {
 
             await expect(resultPromise).rejects.toEqual({
                 message: 'Network error',
-                xhr: xhrMock
+                xhr: xhrMock,
             });
         });
 
@@ -1391,15 +1401,15 @@ describe('RequestManager', () => {
                 timeout: 0,
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const resultPromise = requestManager.xhr('/api/users', {
-                timeout: 1000
+                timeout: 1000,
             });
 
             setTimeout(() => {
@@ -1408,13 +1418,13 @@ describe('RequestManager', () => {
 
             await expect(resultPromise).rejects.toEqual({
                 message: 'Request timeout',
-                xhr: xhrMock
+                xhr: xhrMock,
             });
         });
 
         test('should cancel XHR request when aborted', async () => {
             let abortCalled = false;
-            
+
             const xhrMock = {
                 open: () => {},
                 send: () => {},
@@ -1426,32 +1436,32 @@ describe('RequestManager', () => {
                 getResponseHeader: () => null,
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const controller = new AbortController();
             const resultPromise = requestManager.xhr('/api/users', {
-                abortController: controller
+                abortController: controller,
             });
 
             // Wait for XHR to be set up
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             controller.abort();
 
             // Wait a bit for abort to be processed
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(abortCalled).toBe(true);
         });
 
         test('should use requestKey for cancellation grouping', async () => {
             let abortCalled = false;
-            
+
             const xhrMock1 = {
                 open: () => {},
                 send: () => {},
@@ -1467,7 +1477,7 @@ describe('RequestManager', () => {
                 statusText: 'OK',
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
             const xhrMock2 = {
@@ -1482,11 +1492,11 @@ describe('RequestManager', () => {
                 statusText: 'OK',
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
             let xhrCallCount = 0;
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 xhrCallCount++;
                 return xhrCallCount === 1 ? xhrMock1 : xhrMock2;
             };
@@ -1494,14 +1504,14 @@ describe('RequestManager', () => {
             const controller1 = new AbortController();
             const request1 = requestManager.xhr('/api/users?page=1', {
                 abortController: controller1,
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
             request1.catch(() => {}); // Handle cancellation
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const resultPromise = requestManager.xhr('/api/users?page=2', {
-                requestKey: 'get-users'
+                requestKey: 'get-users',
             });
 
             setTimeout(() => {
@@ -1517,7 +1527,7 @@ describe('RequestManager', () => {
 
         test('should handle responseType option', async () => {
             let responseTypeSet = '';
-            
+
             const xhrMock = {
                 open: () => {},
                 send: () => {},
@@ -1535,15 +1545,15 @@ describe('RequestManager', () => {
                 statusText: 'OK',
                 onload: null,
                 onerror: null,
-                ontimeout: null
+                ontimeout: null,
             };
 
-            global.XMLHttpRequest = function() {
+            global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const resultPromise = requestManager.xhr('/api/users', {
-                responseType: 'arraybuffer'
+                responseType: 'arraybuffer',
             });
 
             setTimeout(() => {
@@ -1590,7 +1600,7 @@ describe('RequestManager', () => {
             controller.abort();
 
             // Wait a bit for the event to fire
-            return new Promise(resolve => {
+            return new Promise((resolve) => {
                 setTimeout(() => {
                     expect(abortCalled).toBe(true);
                     resolve();
@@ -1614,7 +1624,7 @@ describe('RequestManager', () => {
             controller.abort();
 
             // Wait a bit for the event to fire
-            return new Promise(resolve => {
+            return new Promise((resolve) => {
                 setTimeout(() => {
                     expect(abortCalled).toBe(true);
                     resolve();
@@ -1646,7 +1656,7 @@ describe('RequestManager', () => {
             controller.abort();
 
             // Wait a bit to ensure nothing breaks
-            return new Promise(resolve => {
+            return new Promise((resolve) => {
                 setTimeout(() => {
                     resolve();
                 }, 10);
@@ -1679,7 +1689,7 @@ describe('RequestManager', () => {
                             resolve({
                                 ok: true,
                                 status: 200,
-                                json: () => Promise.resolve({ data: 'first' })
+                                json: () => Promise.resolve({ data: 'first' }),
                             });
                         }, 50);
                     });
@@ -1690,7 +1700,7 @@ describe('RequestManager', () => {
                             resolve({
                                 ok: true,
                                 status: 200,
-                                json: () => Promise.resolve({ data: 'second' })
+                                json: () => Promise.resolve({ data: 'second' }),
                             });
                         }, 50);
                     });
@@ -1726,17 +1736,19 @@ describe('RequestManager', () => {
                 }, 100);
             });
 
-            requestManager.request('/api/test', promise1, {
-                abortController: controller1,
-                noCancel: true
-            }).catch(() => {});
+            requestManager
+                .request('/api/test', promise1, {
+                    abortController: controller1,
+                    noCancel: true,
+                })
+                .catch(() => {});
 
             // Wait a bit before making second request
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             const promise2 = Promise.resolve('second');
             const result2 = await requestManager.request('/api/test', promise2, {
-                noCancel: true
+                noCancel: true,
             });
 
             expect(result2).toBe('second');
@@ -1744,7 +1756,7 @@ describe('RequestManager', () => {
             expect(firstCancelled).toBe(false);
 
             // Wait for first request to complete
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise((resolve) => setTimeout(resolve, 150));
             expect(firstResolved).toBe(true);
         });
 
@@ -1755,18 +1767,18 @@ describe('RequestManager', () => {
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: 'success' })
+                    json: () => Promise.resolve({ data: 'success' }),
                 });
             };
 
             // Even with same requestKey, noCancel should prevent cancellation
             const result1 = await requestManager.fetch('/api/test', {
                 requestKey: 'test-key',
-                noCancel: true
+                noCancel: true,
             });
             const result2 = await requestManager.fetch('/api/test', {
                 requestKey: 'test-key',
-                noCancel: true
+                noCancel: true,
             });
 
             expect(fetchCallCount).toBe(2);
@@ -1784,14 +1796,14 @@ describe('RequestManager', () => {
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: `result-${fetchCallCount}` })
+                    json: () => Promise.resolve({ data: `result-${fetchCallCount}` }),
                 });
             };
 
             const results = await Promise.all([
                 requestManager.fetch('/api/hasty?load=1', { noCancel: true }),
                 requestManager.fetch('/api/hasty?load=2', { noCancel: true }),
-                requestManager.fetch('/api/hasty?load=3', { noCancel: true })
+                requestManager.fetch('/api/hasty?load=3', { noCancel: true }),
             ]);
 
             expect(fetchCallCount).toBe(3);
@@ -1799,7 +1811,7 @@ describe('RequestManager', () => {
             expect(fetchResults).toContain('/api/hasty?load=1');
             expect(fetchResults).toContain('/api/hasty?load=2');
             expect(fetchResults).toContain('/api/hasty?load=3');
-            results.forEach(result => {
+            results.forEach((result) => {
                 expect(result.ok).toBe(true);
             });
         });
@@ -1811,7 +1823,7 @@ describe('RequestManager', () => {
                 return Promise.resolve({
                     ok: true,
                     status: 200,
-                    json: () => Promise.resolve({ data: 'success' })
+                    json: () => Promise.resolve({ data: 'success' }),
                 });
             };
 
@@ -1819,7 +1831,7 @@ describe('RequestManager', () => {
             await Promise.all([
                 requestManager.fetch('/api/hasty?load=1', { noCancel: true }),
                 requestManager.fetch('/api/hasty?load=2', { noCancel: true }),
-                requestManager.fetch('/api/hasty?load=3', { noCancel: true })
+                requestManager.fetch('/api/hasty?load=3', { noCancel: true }),
             ]);
 
             // All should have executed

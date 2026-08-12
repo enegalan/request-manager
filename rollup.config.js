@@ -10,8 +10,8 @@ export default [
             file: 'dist/request-manager.esm.js',
             format: 'esm',
             banner,
-            sourcemap: true
-        }
+            sourcemap: true,
+        },
     },
     // ESM minified build
     {
@@ -20,9 +20,9 @@ export default [
             file: 'dist/request-manager.esm.min.js',
             format: 'esm',
             banner,
-            sourcemap: true
+            sourcemap: true,
         },
-        plugins: [terser()]
+        plugins: [terser()],
     },
     // CommonJS build
     {
@@ -32,8 +32,8 @@ export default [
             format: 'cjs',
             banner,
             sourcemap: true,
-            exports: 'named'
-        }
+            exports: 'named',
+        },
     },
     // CommonJS minified build
     {
@@ -43,9 +43,9 @@ export default [
             format: 'cjs',
             banner,
             sourcemap: true,
-            exports: 'named'
+            exports: 'named',
         },
-        plugins: [terser()]
+        plugins: [terser()],
     },
     // UMD build (for browsers)
     {
@@ -55,8 +55,8 @@ export default [
             format: 'umd',
             name: 'RequestManager',
             banner,
-            sourcemap: true
-        }
+            sourcemap: true,
+        },
     },
     // UMD minified build (for browsers)
     {
@@ -66,9 +66,9 @@ export default [
             format: 'umd',
             name: 'RequestManager',
             banner,
-            sourcemap: true
+            sourcemap: true,
         },
-        plugins: [terser()]
+        plugins: [terser()],
     },
     // CDN build (simple name for CDN usage)
     {
@@ -78,8 +78,8 @@ export default [
             format: 'iife',
             name: 'RequestManager',
             banner,
-            sourcemap: true
-        }
+            sourcemap: true,
+        },
     },
     // CDN minified build (simple name for CDN usage)
     {
@@ -89,8 +89,8 @@ export default [
             format: 'iife',
             name: 'RequestManager',
             banner,
-            sourcemap: true
+            sourcemap: true,
         },
-        plugins: [terser()]
-    }
+        plugins: [terser()],
+    },
 ];

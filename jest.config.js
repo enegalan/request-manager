@@ -5,9 +5,5 @@ export default {
         '^(\\.{1,2}/.*)\\.js$': '$1',
     },
     testMatch: ['**/__tests__/**/*.test.js'],
-    collectCoverageFrom: [
-        'index.js',
-        '!**/node_modules/**',
-        '!**/__tests__/**',
-    ],
+    collectCoverageFrom: ['index.js', '!**/node_modules/**', '!**/__tests__/**'],
 };
