@@ -956,15 +956,21 @@ describe('RequestManager', () => {
 
     describe('axios() method', () => {
         let originalAxios;
-        let axiosGetCalled;
-        let axiosGetArgs;
+        let axiosCalled;
+        let axiosArgs;
+        let axiosImpl;
 
         beforeEach(() => {
-            // Mock axios
             originalAxios = global.axios;
-            axiosGetCalled = false;
-            axiosGetArgs = null;
-            global.axios = {
+            axiosCalled = false;
+            axiosArgs = null;
+            axiosImpl = (config) => {
+                axiosCalled = true;
+                axiosArgs = config;
+                return Promise.resolve({ data: 'success', status: 200 });
+            };
+            const axiosMock = (config) => axiosImpl(config);
+            global.axios = Object.assign(axiosMock, {
                 CancelToken: {
                     source: () => {
                         const cancelFn = () => {};
@@ -974,14 +980,8 @@ describe('RequestManager', () => {
                         };
                     },
                 },
-                get: (url, options) => {
-                    axiosGetCalled = true;
-                    axiosGetArgs = { url, options };
-                    return Promise.resolve({ data: 'success', status: 200 });
-                },
-                post: () => Promise.resolve({ data: 'created', status: 201 }),
                 isCancel: (error) => error && error.__CANCEL__ === true,
-            };
+            });
         });
 
         afterEach(() => {
@@ -991,9 +991,9 @@ describe('RequestManager', () => {
         test('should execute an axios GET request', async () => {
             const result = await requestManager.axios('/api/users');
 
-            expect(axiosGetCalled).toBe(true);
-            expect(axiosGetArgs.url).toBe('/api/users');
-            expect(axiosGetArgs.options.cancelToken).toBe('mock-token');
+            expect(axiosCalled).toBe(true);
+            expect(axiosArgs.url).toBe('/api/users');
+            expect(axiosArgs.cancelToken).toBe('mock-token');
             expect(result.data).toBe('success');
             expect(result.status).toBe(200);
         });
@@ -1006,22 +1006,35 @@ describe('RequestManager', () => {
 
             await requestManager.axios('/api/users', options);
 
-            expect(axiosGetCalled).toBe(true);
-            expect(axiosGetArgs.url).toBe('/api/users');
-            expect(axiosGetArgs.options.cancelToken).toBe('mock-token');
-            expect(axiosGetArgs.options.headers).toEqual({ 'Content-Type': 'application/json' });
-            expect(axiosGetArgs.options.params).toEqual({ page: 1 });
+            expect(axiosCalled).toBe(true);
+            expect(axiosArgs.url).toBe('/api/users');
+            expect(axiosArgs.cancelToken).toBe('mock-token');
+            expect(axiosArgs.headers).toEqual({ 'Content-Type': 'application/json' });
+            expect(axiosArgs.params).toEqual({ page: 1 });
+        });
+
+        test('should respect method and data for non-GET requests', async () => {
+            await requestManager.axios('/api/users', {
+                method: 'POST',
+                data: { name: 'John' },
+            });
+
+            expect(axiosCalled).toBe(true);
+            expect(axiosArgs.url).toBe('/api/users');
+            expect(axiosArgs.method).toBe('POST');
+            expect(axiosArgs.data).toEqual({ name: 'John' });
+            expect(axiosArgs.cancelToken).toBe('mock-token');
         });
 
         test('should cancel previous request with same URL', async () => {
-            global.axios.get = () => new Promise(() => {}); // Never resolves
+            axiosImpl = () => new Promise(() => {}); // Never resolves
 
             const request1 = requestManager.axios('/api/users');
             request1.catch(() => {}); // Handle cancellation
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
-            global.axios.get = () => Promise.resolve({ data: 'second', status: 200 });
+            axiosImpl = () => Promise.resolve({ data: 'second', status: 200 });
 
             const result = await requestManager.axios('/api/users');
 
@@ -1029,7 +1042,7 @@ describe('RequestManager', () => {
         });
 
         test('should use requestKey for cancellation grouping', async () => {
-            global.axios.get = () => new Promise(() => {}); // Never resolves
+            axiosImpl = () => new Promise(() => {}); // Never resolves
 
             const request1 = requestManager.axios('/api/users?page=1', {
                 requestKey: 'get-users',
@@ -1038,7 +1051,7 @@ describe('RequestManager', () => {
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
-            global.axios.get = () => Promise.resolve({ data: 'second', status: 200 });
+            axiosImpl = () => Promise.resolve({ data: 'second', status: 200 });
 
             const result = await requestManager.axios('/api/users?page=2', {
                 requestKey: 'get-users',
@@ -1051,7 +1064,12 @@ describe('RequestManager', () => {
             let customAxiosCalled = false;
             let customAxiosArgs = null;
 
-            const customAxiosInstance = {
+            const customAxiosImpl = (config) => {
+                customAxiosCalled = true;
+                customAxiosArgs = config;
+                return Promise.resolve({ data: 'custom-success', status: 200 });
+            };
+            const customAxiosInstance = Object.assign(customAxiosImpl, {
                 CancelToken: {
                     source: () => {
                         return {
@@ -1060,33 +1078,28 @@ describe('RequestManager', () => {
                         };
                     },
                 },
-                get: (url, options) => {
-                    customAxiosCalled = true;
-                    customAxiosArgs = { url, options };
-                    return Promise.resolve({ data: 'custom-success', status: 200 });
-                },
-            };
+            });
 
             const result = await requestManager.axios('/api/users', {}, customAxiosInstance);
 
             expect(customAxiosCalled).toBe(true);
-            expect(axiosGetCalled).toBe(false); // Global axios should not be called
+            expect(axiosCalled).toBe(false); // Global axios should not be called
             expect(customAxiosArgs.url).toBe('/api/users');
-            expect(customAxiosArgs.options.cancelToken).toBe('custom-token');
+            expect(customAxiosArgs.cancelToken).toBe('custom-token');
             expect(result.data).toBe('custom-success');
         });
 
         test('should use global axios when axiosInstance is null', async () => {
             const result = await requestManager.axios('/api/users', {}, null);
 
-            expect(axiosGetCalled).toBe(true);
+            expect(axiosCalled).toBe(true);
             expect(result.data).toBe('success');
         });
 
         test('should use global axios when axiosInstance is not provided', async () => {
             const result = await requestManager.axios('/api/users');
 
-            expect(axiosGetCalled).toBe(true);
+            expect(axiosCalled).toBe(true);
             expect(result.data).toBe('success');
         });
     });

@@ -402,7 +402,7 @@ class RequestManager {
         const axiosLib = axiosInstance || axios;
         const cancelToken = axiosLib.CancelToken.source();
         const requestId = this.#_generateRequestId(url, requestOptions.requestKey, requestOptions.noCancel);
-        return this.#_request(requestId, axiosLib.get(url, { cancelToken: cancelToken.token, ...requestOptions }), {
+        return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...requestOptions }), {
             cancelToken: cancelToken,
             ...requestOptions,
         });
