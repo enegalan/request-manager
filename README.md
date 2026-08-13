@@ -3,15 +3,15 @@
 [![npm version](https://img.shields.io/npm/v/@enegalan/request-manager.svg)](https://www.npmjs.com/package/@enegalan/request-manager)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-RequestManager is a JavaScript library designed to manage and regulate HTTP requests efficiently. It allows you to use HTTP calls from any library (ajax, Ext.Ajax, axios, fetch, etc.) by accepting Promises as parameters.
+RequestManager is a JavaScript library designed to manage and regulate HTTP requests efficiently. It cancels duplicate in-flight calls and works with fetch, axios, jQuery.ajax, Ext.Ajax, raw XHR, and custom clients.
 
 ## Key Features
 
-- **Universal Compatibility**: Works with any HTTP library that returns a Promise (fetch, axios, Ext.Ajax, etc.)
-- **Automatic Cancellation**: When a request is repeated with the same `requestKey`, the previous request is automatically cancelled. This identifier is generated with `url` parameter or can be manually specified in `options`.
-- **Prioritizes Recent Requests**: The library ensures that only the most recent request is processed, cancelling older ones
-- **Simple API**: Easy to use and integrate into existing projects
-- **Adapt to your requirements**: The library supports `options` for custom request management
+- **Universal Compatibility**: Dedicated helpers for fetch, axios, ajax-style clients (jQuery / Ext.Ajax), and XMLHttpRequest — plus a low-level `request()` escape hatch
+- **Automatic Cancellation**: When a request is repeated with the same identifier, the previous request is automatically cancelled. The ID comes from the cleaned URL, or from `options.requestKey`
+- **Prioritizes Recent Requests**: Only the most recent request for a given ID is kept; older ones are aborted
+- **Simple API**: Prefer the helper that matches your HTTP client; wire cancel yourself only with `request()`
+- **Adapt to your requirements**: Shared options (`requestKey`, `noCancel`, `includeQuery`, ...) across helpers
 - **TypeScript Support**: Full TypeScript type definitions included
 - **Multiple Module Formats**: ESM, CommonJS, and UMD builds available
 
@@ -64,6 +64,41 @@ const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/
 
 ## Usage
 
+### Which method should I use?
+
+Pick the **dedicated helper** for your HTTP client. Use `request()` only when none of the helpers fit.
+
+| Client                            | Use this                                  | Why                                                                                                    |
+|-----------------------------------|-------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| `fetch`                           | **`fetch(url, options)`**                 | Creates the AbortSignal and passes it to `fetch` for you                                               |
+| `axios`                           | **`axios(url, options, axiosInstance?)`** | Creates axios `CancelToken` and wires cancel for you                                                   |
+| jQuery `.ajax`, Ext.Ajax, similar | **`ajax(ajaxFunction, url, options)`**    | Runs your ajax function, then wires abort for you (`req.abort`, `Ext.Ajax.abort(req)`, or `xhr.abort`) |
+| Raw `XMLHttpRequest`              | **`xhr(url, options)`**                   | Owns open/send and abort lifecycle                                                                     |
+| Custom / already-started Promise  | **`request(url, promiseOrFn, options)`**  | Escape hatch — **you** must pass `signal` / `cancelToken` / `addAbortListener`                         |
+
+**Rule of thumb**
+
+1. Known client → use its helper (`fetch` / `axios` / `ajax` / `xhr`).
+2. Helper already cancels the real network call — no manual abort wiring.
+3. `request()` is for edge cases (wrapping an existing Promise, exotic clients). Same cancellation *map* as the helpers, but abort plumbing is your job.
+
+```javascript
+// Preferred
+requestManager.fetch('/api/users');
+requestManager.axios('/api/users');
+requestManager.ajax(({ url, ...opts }) => $.ajax({ url, ...opts }), '/api/users');
+requestManager.ajax(({ url, ...opts }) => Ext.Ajax.request({ url, ...opts }), '/api/users');
+requestManager.xhr('/api/users');
+
+// Escape hatch — you wire cancel yourself (see sandbox / API notes below)
+requestManager.request('/api/users', ({ options }) =>
+    fetch('/api/users', { signal: options.signal, ...options })
+);
+```
+
+> [!IMPORTANT]
+> Calling `request(url, Ext.Ajax.request(...))` or `request(url, $.ajax(...))` **without** linking abort (via `addAbortListener` / `cancelToken` / `signal`) does **not** abort the browser request when a duplicate starts. Use **`ajax()`** for those clients.
+
 ### Basic Example with fetch()
 
 ```javascript
@@ -101,33 +136,28 @@ requestManager
     .then((data) => console.log(data));
 ```
 
-### Using request() with Promise
+### Using request()
+
+`request()` is the low-level API when you already have a Promise or need custom wiring.
 
 ```javascript
 import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-requestManager
-    .request('/api/users', fetch('/api/users'))
-    .then((response) => response.json())
-    .then((data) => console.log(data));
-```
-
-### Using request() with Function
-
-```javascript
-import RequestManager from '@enegalan/request-manager';
-
-const requestManager = new RequestManager();
-
-// Custom logic
+// Function form — options include signal; pass it into fetch (or prefer requestManager.fetch)
 requestManager
     .request('/api/users', ({ options }) => {
-        return fetch('/api/users', options);
+        return fetch('/api/users', { signal: options.signal, ...options });
     })
     .then((response) => response.json())
     .then((data) => console.log(data));
+
+// Pre-created Promise — must also pass abortController / cancelToken or cancel is incomplete
+const abortController = requestManager.getAbortController();
+requestManager.request('/api/users', fetch('/api/users', { signal: abortController.signal }), {
+    abortController,
+});
 ```
 
 ### Automatic Cancellation with Same URL
@@ -255,19 +285,8 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-const CancelToken = axios.CancelToken;
-const source = CancelToken.source();
-
 requestManager
-    .request(
-        '/api/users',
-        axios.get('/api/users', {
-            cancelToken: source.token,
-        }),
-        {
-            cancelToken: () => source.cancel(),
-        }
-    )
+    .axios('/api/users')
     .then((response) => console.log(response.data))
     .catch((error) => {
         if (axios.isCancel(error)) {
@@ -278,31 +297,41 @@ requestManager
     });
 ```
 
-### Using with Axios and Function
+### Using with jQuery / Ext.Ajax (`ajax()`)
+
+`ajax()` invokes your function, inspects the returned request object, and registers abort automatically (`req.abort`, `Ext.Ajax.abort(req)`, or `xhr.abort`).
 
 ```javascript
-import axios from 'axios';
 import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-requestManager
-    .request('/api/users', ({ options }) => {
-        const CancelToken = axios.CancelToken;
-        const source = CancelToken.source();
-        return axios.get('/api/users', { cancelToken: source.token });
-    })
-    .then((response) => console.log(response.data))
-    .catch((error) => {
-        if (axios.isCancel(error)) {
-            console.log('Request was cancelled');
-        } else {
-            console.error('Request failed:', error);
-        }
-    });
+// jQuery
+requestManager.ajax($.ajax.bind($), '/api/users', { method: 'GET' });
+
+// Ext.Ajax — return the Ext request object (not a Promise)
+requestManager.ajax(
+    ({ url, ...options }) => Ext.Ajax.request({ url, ...options }),
+    '/api/users'
+);
+
+// Or bind Ext.Ajax.request directly when options shape matches
+requestManager.ajax(Ext.Ajax.request.bind(Ext.Ajax), '/api/users');
+```
+
+Equivalent with `request()` (more boilerplate — not recommended):
+
+```javascript
+requestManager.request('/api/users', ({ options }) => {
+    const req = Ext.Ajax.request({ url: '/api/users', ...options });
+    requestManager.addAbortListener(() => Ext.Ajax.abort(req), options.signal);
+    return req;
+});
 ```
 
 ### Using with Other Libraries
+
+If there is no dedicated helper, use `request()` and **must** abort on `options.signal` (or pass `cancelToken` / `addAbortListener`).
 
 ```javascript
 import RequestManager from '@enegalan/request-manager';
@@ -318,7 +347,6 @@ requestManager
             xhr.onerror = () => reject(new Error('Request failed'));
             xhr.send();
 
-            // Use signal to cancel if needed
             options.signal.addEventListener('abort', () => {
                 xhr.abort();
                 reject(new Error('Request was cancelled'));
@@ -327,26 +355,6 @@ requestManager
     })
     .then((data) => console.log(data))
     .catch((error) => console.error(error));
-```
-
-### Using with Pre-created Promises
-
-```javascript
-import RequestManager from '@enegalan/request-manager';
-
-const requestManager = new RequestManager();
-
-const existingPromise = fetch('/api/data');
-
-requestManager
-    .request('/api/data', existingPromise, {
-        // You can still provide cancelToken if your library supports it
-        cancelToken: () => {
-            // Custom cancellation logic
-        },
-    })
-    .then((response) => response.json())
-    .then((data) => console.log(data));
 ```
 
 ## API Reference
@@ -369,12 +377,12 @@ const requestManager = new RequestManager({ verbose: true });
 
 ### `request(url, requestPromise, options)`
 
-Executes an HTTP request, cancelling any previous request with the same identifier.
+Low-level entry point. Tracks the call by ID and cancels the previous one with the same ID — but **you** must connect abort to the underlying client (`signal`, `cancelToken`, or `addAbortListener`). Otherwise the manager drops the tracked entry while the HTTP request may keep running.
 
 **Parameters:**
 
 - `url` (string): The URL of the request (used to generate request ID from cleaned URL)
-- `requestPromise` (Promise|Function|string): The Promise returned by any HTTP library (fetch, axios, etc.), a Function that can receive `{ options }` and returns a Promise, or a URL string (which will be used with fetch internally)
+- `requestPromise` (Promise|Function|string): A Promise from any HTTP library, a Function that receives `{ options }` and returns a Promise/request object, or a URL string (fetch internally)
 - `options` (Object, optional): Configuration options
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
@@ -460,11 +468,17 @@ requestManager
 
 ### `ajax(ajaxFunction, url, options)`
 
-Executes an HTTP request using a custom ajax method function, cancelling any previous request with the same identifier.
+Helper for **ajax-style clients** (jQuery.ajax, Ext.Ajax, etc.) that return a request object rather than (or in addition to) a Promise.
+
+Calls `ajaxFunction({ url, ...options })`, then auto-wires cancel by inspecting the returned object:
+
+1. `req.abort` if present (jQuery)
+2. else `Ext.Ajax.abort(req)` when Ext is available and `req.xhr` exists
+3. else `req.xhr.abort` / raw `XMLHttpRequest.abort`
 
 **Parameters:**
 
-- `ajaxFunction` (Function): A function that receives `{ url, ...options }` and returns a Promise. The function should accept an object with `url` and other options including the `signal` (AbortSignal).
+- `ajaxFunction` (Function): Receives `{ url, ...options }` and returns the library request object (or a Promise).
 - `url` (string): The URL to request
 - `options` (Object, optional): Configuration options
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
@@ -484,27 +498,17 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// Using with jQuery.ajax
+// jQuery
 requestManager
-    .ajax(
-        ({ url, ...options }) => {
-            return new Promise((resolve, reject) => {
-                $.ajax({
-                    url: url,
-                    ...options,
-                    success: resolve,
-                    error: reject,
-                });
-            });
-        },
-        '/api/users',
-        {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-        }
-    )
+    .ajax($.ajax.bind($), '/api/users', { method: 'GET' })
     .then((data) => console.log(data))
     .catch((error) => console.error(error));
+
+// Ext.Ajax
+requestManager.ajax(
+    ({ url, ...options }) => Ext.Ajax.request({ url, ...options }),
+    '/api/users'
+);
 ```
 
 ### `xhr(url, options)`
