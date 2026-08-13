@@ -259,17 +259,24 @@ class RequestManager {
                 }
             }
         } else {
-            // If requestPromise is not a promise, we can't track its completion automatically
-            // This can happen with libraries like ExtJS that return request objects instead of promises
-            // In this case, the user should handle the request object themselves
-            // We'll resolve the wrapper promise immediately to prevent it from hanging
-            // The user can still use the request object returned by the library
-            setTimeout(() => {
-                if (this.activeRequests.get(requestId) === requestInfo && !requestInfo.isCancelled) {
-                    this.activeRequests.delete(requestId);
-                    resolveWrapper(requestPromise); // Resolve with the request object so the user can use it
-                }
-            }, 0);
+            // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
+            // underlying XHR finishes so a later duplicate can still cancel it.
+            const xhr =
+                requestPromise &&
+                (requestPromise.xhr ||
+                    (typeof XMLHttpRequest !== 'undefined' && requestPromise instanceof XMLHttpRequest
+                        ? requestPromise
+                        : null));
+            const finish = () => {
+                if (this.activeRequests.get(requestId) !== requestInfo) return;
+                this.activeRequests.delete(requestId);
+                if (!requestInfo.isCancelled) resolveWrapper(requestPromise);
+            };
+            if (xhr && typeof xhr.addEventListener === 'function') {
+                xhr.addEventListener('loadend', finish);
+            } else {
+                setTimeout(finish, 0);
+            }
         }
         return wrapperPromise;
     }

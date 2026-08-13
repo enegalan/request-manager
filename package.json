@@ -1,6 +1,6 @@
 {
     "name": "@enegalan/request-manager",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "description": "JavaScript library for managing and regulating HTTP requests efficiently",
     "publishConfig": {
         "access": "public"
@@ -65,7 +65,7 @@
         "xhr",
         "XMLHttpRequest"
     ],
-    "author": "",
+    "author": "Eneko Galan",
     "license": "MIT",
     "repository": {
         "type": "git",
