@@ -65,7 +65,7 @@
         /// This method requires to pass the abort method, which is not easy to read and remember.
         requestManager.request(url, ({ options }) => {
             const req = Ext.Ajax.request({ url: url, ...options });
-            requestManager.addAbortListener(req.xhr.abort.bind(req.xhr), options.signal);
+            requestManager.addAbortListener(() => Ext.Ajax.abort(req), options.signal);
             return req;
         });
         /// XMLHttpRequest example (Not recommended, use xhr() instead)

@@ -1,3 +1,9 @@
+## [1.0.9] - 2026-08-13
+
+### Changed
+
+- `ajax()` aborts Ext.Ajax request objects via `Ext.Ajax.abort(req)` when `Ext.Ajax` is available (so Ext sets `response.aborted`). Consumers can `return Ext.Ajax.request(...)` with no custom `abort` shim.
+
 ## [1.0.8] - 2026-08-13
 
 ### Changed

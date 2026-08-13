@@ -127,6 +127,27 @@ class RequestManager {
     }
 
     /**
+     * Picks the best abort callback for a client request object.
+     * @param {Object} req - The request object
+     * @returns {Function|null}
+     * @private
+     */
+    #_resolveAbortMethod(req) {
+        if (!req) return null;
+        if (typeof req.abort === 'function') return () => req.abort();
+        const ExtAjax =
+            typeof globalThis !== 'undefined' && globalThis.Ext && globalThis.Ext.Ajax ? globalThis.Ext.Ajax : null;
+        if (req.xhr && ExtAjax && typeof ExtAjax.abort === 'function') {
+            return () => ExtAjax.abort(req);
+        }
+        if (req.xhr && typeof req.xhr.abort === 'function') return () => req.xhr.abort();
+        if (typeof XMLHttpRequest !== 'undefined' && req instanceof XMLHttpRequest) {
+            return () => req.abort();
+        }
+        return null;
+    }
+
+    /**
      * Generates a request identifier based on the requestKey or URL
      * @param {string} url - The URL of the request
      * @param {string|number|Function} requestKey - Optional key to generate a deterministic ID.
@@ -482,16 +503,7 @@ class RequestManager {
         try {
             const abortController = this.#_resolveAbortController(options.abortController);
             const req = ajaxFunction({ url, ...requestOptions });
-            // Determine abort method
-            let abortMethod = null;
-            if (req) {
-                if (typeof req.abort === 'function') {
-                    abortMethod = req.abort.bind(req);
-                } else if (req.xhr && typeof req.xhr.abort === 'function') {
-                    abortMethod = req.xhr.abort.bind(req.xhr);
-                }
-            }
-            if (abortMethod) this.addAbortListener(abortMethod, abortController.signal);
+            this.addAbortListener(this.#_resolveAbortMethod(req), abortController.signal);
             // Pass the AbortController to avoid creating another one for this request
             return this.#_request(requestId, req, { ...requestOptions, abortController: abortController });
         } catch (error) {
@@ -692,7 +704,7 @@ class RequestManager {
      * @param {AbortSignal} signal - The signal to listen to
      */
     addAbortListener(abortMethod, signal) {
-        if (!signal) return;
+        if (!abortMethod || !signal) return;
         signal.addEventListener('abort', () => {
             if (typeof abortMethod === 'function') {
                 try {
