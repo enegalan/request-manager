@@ -69,7 +69,7 @@ const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/
 Pick the **dedicated helper** for your HTTP client. Use `request()` only when none of the helpers fit.
 
 | Client                            | Use this                                  | Why                                                                                                    |
-|-----------------------------------|-------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| --------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `fetch`                           | **`fetch(url, options)`**                 | Creates the AbortSignal and passes it to `fetch` for you                                               |
 | `axios`                           | **`axios(url, options, axiosInstance?)`** | Creates axios `CancelToken` and wires cancel for you                                                   |
 | jQuery `.ajax`, Ext.Ajax, similar | **`ajax(ajaxFunction, url, options)`**    | Runs your ajax function, then wires abort for you (`req.abort`, `Ext.Ajax.abort(req)`, or `xhr.abort`) |
@@ -80,7 +80,7 @@ Pick the **dedicated helper** for your HTTP client. Use `request()` only when no
 
 1. Known client → use its helper (`fetch` / `axios` / `ajax` / `xhr`).
 2. Helper already cancels the real network call — no manual abort wiring.
-3. `request()` is for edge cases (wrapping an existing Promise, exotic clients). Same cancellation *map* as the helpers, but abort plumbing is your job.
+3. `request()` is for edge cases (wrapping an existing Promise, exotic clients). Same cancellation _map_ as the helpers, but abort plumbing is your job.
 
 ```javascript
 // Preferred
@@ -91,9 +91,7 @@ requestManager.ajax(({ url, ...opts }) => Ext.Ajax.request({ url, ...opts }), '/
 requestManager.xhr('/api/users');
 
 // Escape hatch — you wire cancel yourself (see sandbox / API notes below)
-requestManager.request('/api/users', ({ options }) =>
-    fetch('/api/users', { signal: options.signal, ...options })
-);
+requestManager.request('/api/users', ({ options }) => fetch('/api/users', { signal: options.signal, ...options }));
 ```
 
 > [!IMPORTANT]
@@ -310,10 +308,7 @@ const requestManager = new RequestManager();
 requestManager.ajax($.ajax.bind($), '/api/users', { method: 'GET' });
 
 // Ext.Ajax — return the Ext request object (not a Promise)
-requestManager.ajax(
-    ({ url, ...options }) => Ext.Ajax.request({ url, ...options }),
-    '/api/users'
-);
+requestManager.ajax(({ url, ...options }) => Ext.Ajax.request({ url, ...options }), '/api/users');
 
 // Or bind Ext.Ajax.request directly when options shape matches
 requestManager.ajax(Ext.Ajax.request.bind(Ext.Ajax), '/api/users');
@@ -505,10 +500,7 @@ requestManager
     .catch((error) => console.error(error));
 
 // Ext.Ajax
-requestManager.ajax(
-    ({ url, ...options }) => Ext.Ajax.request({ url, ...options }),
-    '/api/users'
-);
+requestManager.ajax(({ url, ...options }) => Ext.Ajax.request({ url, ...options }), '/api/users');
 ```
 
 ### `xhr(url, options)`
