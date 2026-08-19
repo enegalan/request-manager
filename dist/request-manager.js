@@ -8,18 +8,18 @@ var RequestManager = (function () {
      * This library allows you to manage HTTP requests from any library (ajax, Ext.Ajax, axios, fetch, etc.)
      * by accepting Promises as parameters. When a request is repeated with the same identifier,
      * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.
-    */
+     */
     class RequestManager {
-        constructor(managerOptions = {}) {
+        constructor(options = {}) {
             /**
              * Map to store active requests by their unique identifier.
              * @type {Map<string, import('./index.d.ts').ActiveRequest>}
              */
             this.activeRequests = new Map();
             /**
-             * @type {import('./index.d.ts').ManagerOptions}
+             * @type {import('./index.d.ts').Options}
              */
-            this.managerOptions = managerOptions;
+            this.options = options;
             /**
              * One-shot AbortController for getSignal()/getAbortController() handoff.
              * Consumed by the next request that does not pass options.abortController.
@@ -30,18 +30,18 @@ var RequestManager = (function () {
 
         /**
          * Gets the manager options
-         * @returns {import('./index.d.ts').ManagerOptions} Manager options
+         * @returns {import('./index.d.ts').Options} Manager options
          */
         getOptions() {
-            return this.managerOptions;
+            return this.options;
         }
 
         /**
          * Sets the manager options
-         * @param {import('./index.d.ts').ManagerOptions} options - The options to set
+         * @param {import('./index.d.ts').Options} options - The options to set
          */
         setOptions(options) {
-            this.managerOptions = options;
+            this.options = options;
         }
 
         /**
@@ -369,7 +369,11 @@ var RequestManager = (function () {
             }
 
             // Reject the wrapper promise
-            this.#_deleteRequest(requestId, requestInfo.rejectWrapper, this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null);
+            this.#_deleteRequest(
+                requestId,
+                requestInfo.rejectWrapper,
+                this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null
+            );
             return true;
         }
 

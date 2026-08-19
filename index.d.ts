@@ -56,7 +56,7 @@ export interface ActiveRequest<T = any> {
 /**
  * RequestManager global options interface
  */
-export interface ManagerOptions {
+export interface Options {
     /**
      * If true, cancellation rejects the wrapper promise with a message that includes the request identifier.
      * If false, cancellation is silent: the wrapper promise does not settle and nothing is logged.
@@ -293,7 +293,7 @@ declare class RequestManager {
     /**
      * Manager options that were passed to the constructor
      */
-    managerOptions: ManagerOptions;
+    options: Options;
 
     /**
      * One-shot AbortController handoff from getAbortController()/getSignal().
@@ -303,21 +303,21 @@ declare class RequestManager {
 
     /**
      * Creates a new RequestManager instance
-     * @param managerOptions - Configuration options for the manager
+     * @param options - Configuration options for the manager
      */
-    constructor(managerOptions?: ManagerOptions);
+    constructor(options?: Options);
 
     /**
      * Sets the manager options
      * @param options - The manager options to set
      */
-    setOptions(options: ManagerOptions): void;
+    setOptions(options: Options): void;
 
     /**
      * Gets the manager options
      * @returns The manager options
      */
-    getOptions(): ManagerOptions;
+    getOptions(): Options;
 
     /**
      * Creates a new AbortController and returns its signal for the next request()

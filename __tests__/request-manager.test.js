@@ -383,7 +383,7 @@ describe('RequestManager', () => {
             expect(settled).toBe(false);
         });
 
-        test('setOptions should update managerOptions', () => {
+        test('setOptions should update options', () => {
             const manager = new RequestManager();
             expect(manager.getOptions()).toEqual({});
 
