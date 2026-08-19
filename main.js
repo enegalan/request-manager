@@ -65,175 +65,28 @@ class RequestManager {
     }
 
     /**
-     * Resolves the AbortController for a request: explicit option, pending handoff, or new.
-     * Clears the pending handoff so concurrent requests do not share it.
-     * @param {AbortController|undefined} provided - Optional AbortController from options
-     * @returns {AbortController}
-     * @private
+     * Checks if a request with the given identifier is currently active.
+     * @param {string} requestId - The unique identifier to check
+     * @returns {boolean} True if the request is active, false otherwise
      */
-    #_resolveAbortController(provided) {
-        const abortController = provided || this.abortController || new AbortController();
-        this.abortController = null;
-        return abortController;
+    isActive(requestId) {
+        return this.activeRequests.has(requestId);
     }
 
     /**
-     * Picks the best abort callback for a client request object.
-     * @param {Object} req - The request object
-     * @returns {Function|null}
-     * @private
+     * Gets the number of active requests.
+     * @returns {number} The number of currently active requests
      */
-    #_resolveAbortMethod(req) {
-        if (!req) return null;
-        if (typeof req.abort === 'function') return () => req.abort();
-        const ExtAjax =
-            typeof globalThis !== 'undefined' && globalThis.Ext && globalThis.Ext.Ajax ? globalThis.Ext.Ajax : null;
-        if (req.xhr && ExtAjax && typeof ExtAjax.abort === 'function') {
-            return () => ExtAjax.abort(req);
-        }
-        if (req.xhr && typeof req.xhr.abort === 'function') return () => req.xhr.abort();
-        return null;
+    getActiveCount() {
+        return this.activeRequests.size;
     }
 
     /**
-     * Prepares request options by merging options and removing custom properties
-     * @param {import('./index.d.ts').RequestOptions} options - Configuration options
-     * @param {AbortSignal} signal - Abort signal to add to request options
-     * @returns {Object} Prepared request options
-     * @private
+     * Clears all active requests without cancelling them.
+     * Use with caution - this will not cancel the underlying HTTP requests.
      */
-    #_prepareRequestOptions(options, signal) {
-        const requestOptions = {};
-        const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
-        Object.keys(options).forEach((key) => {
-            if (customOptions.includes(key)) return;
-            requestOptions[key] = options[key];
-        });
-        requestOptions.signal = signal;
-        return requestOptions;
-    }
-
-    /**
-     * Deletes a request from the active requests map and rejects the wrapper promise
-     * @param {string} requestId - The unique identifier of the request
-     * @param {Function} rejectWrapper - The function to reject the wrapper promise
-     * @param {*} error - The error to reject the wrapper promise with; the wrapper is not rejected if null/undefined
-     * @private
-     */
-    #_deleteRequest(requestId, rejectWrapper, error) {
-        this.activeRequests.delete(requestId);
-        if (error !== null && error !== undefined) {
-            rejectWrapper(error);
-        }
-    }
-
-    /**
-     * Completes a request by deleting it from the active requests map and resolving the wrapper promise
-     * @param {string} requestId - The unique identifier of the request
-     * @param {Function} resolveWrapper - The function to resolve the wrapper promise
-     * @param {Promise} requestPromise - The request promise
-     * @param {boolean} isCancelled - Whether the request was cancelled
-     * @private
-     */
-    #_completeRequest(requestId, resolveWrapper, requestPromise, isCancelled) {
-        this.activeRequests.delete(requestId);
-        if (!isCancelled) {
-            resolveWrapper(requestPromise);
-        }
-    }
-
-    /**
-     * Internal method that handles the core request logic.
-     * @param {string} requestId - Unique identifier for the request
-     * @param {Promise|import('./index.d.ts').RequestFunction|string} requestPromise - The request promise, function, or URL string
-     * @param {import('./index.d.ts').BaseRequestOptions} options - Configuration options
-     * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-     * @private
-     */
-    #_request(requestId, requestPromise, options = {}) {
-        const abortController = this.#_resolveAbortController(options.abortController);
-
-        // Handle different types of requestPromise inputs
-        // Priority: Function (Custom logic) > String (URL) > Promise (axios, fetch, etc.)
-        if (typeof requestPromise === 'function') {
-            // Function: custom logic for any library (axios, ajax, etc.)
-            requestPromise = requestPromise({ options: this.#_prepareRequestOptions(options, abortController.signal) });
-        } else if (typeof requestPromise === 'string') {
-            // String (URL): make fetch internally
-            requestPromise = fetch(requestPromise, this.#_prepareRequestOptions(options, abortController.signal));
-        }
-
-        // Cancel previous request with the same identifier if it exists
-        if (!options.noCancel) this.cancel(requestId);
-
-        // Create a wrapper promise that will be resolved/rejected based on the request
-        let resolveWrapper, rejectWrapper;
-        const wrapperPromise = new Promise((resolve, reject) => {
-            resolveWrapper = resolve;
-            rejectWrapper = reject;
-        });
-
-        /**
-         * @type {import('./index.d.ts').ActiveRequest}
-         */
-        const requestInfo = {
-            promise: requestPromise,
-            abortController: abortController,
-            cancelToken: options.cancelToken || null,
-            resolveWrapper: resolveWrapper,
-            rejectWrapper: rejectWrapper,
-            isCancelled: false,
-        };
-
-        this.activeRequests.set(requestId, requestInfo);
-
-        // Handle request promise completion
-        if (requestPromise && typeof requestPromise.then === 'function') {
-            try {
-                let req = requestPromise.then((result) => {
-                    if (this.activeRequests.get(requestId) === requestInfo) {
-                        this.#_completeRequest(requestId, resolveWrapper, result, requestInfo.isCancelled);
-                    }
-                });
-                if (req.catch)
-                    req.catch((error) => {
-                        onError(this, error);
-                    });
-            } catch (error) {
-                onError(this, error);
-            }
-            function onError(scope, error) {
-                // Check if this requestInfo is still the active one, or if it was cancelled
-                const currentRequestInfo = scope.activeRequests.get(requestId);
-                if (currentRequestInfo !== requestInfo) return;
-                if (requestInfo.isCancelled) {
-                    // Already cancelled: let cancel() handle cleanup and reject the wrapper promise
-                    scope.cancel(requestId);
-                    return;
-                }
-                // Only delete if this is still the active request
-                scope.#_deleteRequest(requestId, rejectWrapper, error);
-            }
-        } else {
-            // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
-            // underlying XHR finishes so a later duplicate can still cancel it.
-            const xhr =
-                requestPromise &&
-                (requestPromise.xhr ||
-                    (typeof XMLHttpRequest !== 'undefined' && requestPromise instanceof XMLHttpRequest
-                        ? requestPromise
-                        : null));
-            const finish = () => {
-                if (this.activeRequests.get(requestId) !== requestInfo) return;
-                this.#_completeRequest(requestId, resolveWrapper, requestPromise, requestInfo.isCancelled);
-            };
-            if (xhr && typeof xhr.addEventListener === 'function') {
-                xhr.addEventListener('loadend', finish);
-            } else {
-                setTimeout(finish, 0);
-            }
-        }
-        return wrapperPromise;
+    clear() {
+        this.activeRequests.clear();
     }
 
     /**
@@ -556,28 +409,175 @@ class RequestManager {
     }
 
     /**
-     * Checks if a request with the given identifier is currently active.
-     * @param {string} requestId - The unique identifier to check
-     * @returns {boolean} True if the request is active, false otherwise
+     * Resolves the AbortController for a request: explicit option, pending handoff, or new.
+     * Clears the pending handoff so concurrent requests do not share it.
+     * @param {AbortController|undefined} provided - Optional AbortController from options
+     * @returns {AbortController}
+     * @private
      */
-    isActive(requestId) {
-        return this.activeRequests.has(requestId);
+    #_resolveAbortController(provided) {
+        const abortController = provided || this.abortController || new AbortController();
+        this.abortController = null;
+        return abortController;
     }
 
     /**
-     * Gets the number of active requests.
-     * @returns {number} The number of currently active requests
+     * Picks the best abort callback for a client request object.
+     * @param {Object} req - The request object
+     * @returns {Function|null}
+     * @private
      */
-    getActiveCount() {
-        return this.activeRequests.size;
+    #_resolveAbortMethod(req) {
+        if (!req) return null;
+        if (typeof req.abort === 'function') return () => req.abort();
+        const ExtAjax =
+            typeof globalThis !== 'undefined' && globalThis.Ext && globalThis.Ext.Ajax ? globalThis.Ext.Ajax : null;
+        if (req.xhr && ExtAjax && typeof ExtAjax.abort === 'function') {
+            return () => ExtAjax.abort(req);
+        }
+        if (req.xhr && typeof req.xhr.abort === 'function') return () => req.xhr.abort();
+        return null;
     }
 
     /**
-     * Clears all active requests without cancelling them.
-     * Use with caution - this will not cancel the underlying HTTP requests.
+     * Prepares request options by merging options and removing custom properties
+     * @param {import('./index.d.ts').RequestOptions} options - Configuration options
+     * @param {AbortSignal} signal - Abort signal to add to request options
+     * @returns {Object} Prepared request options
+     * @private
      */
-    clear() {
-        this.activeRequests.clear();
+    #_prepareRequestOptions(options, signal) {
+        const requestOptions = {};
+        const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
+        Object.keys(options).forEach((key) => {
+            if (customOptions.includes(key)) return;
+            requestOptions[key] = options[key];
+        });
+        requestOptions.signal = signal;
+        return requestOptions;
+    }
+
+    /**
+     * Deletes a request from the active requests map and rejects the wrapper promise
+     * @param {string} requestId - The unique identifier of the request
+     * @param {Function} rejectWrapper - The function to reject the wrapper promise
+     * @param {*} error - The error to reject the wrapper promise with; the wrapper is not rejected if null/undefined
+     * @private
+     */
+    #_deleteRequest(requestId, rejectWrapper, error) {
+        this.activeRequests.delete(requestId);
+        if (error !== null && error !== undefined) {
+            rejectWrapper(error);
+        }
+    }
+
+    /**
+     * Completes a request by deleting it from the active requests map and resolving the wrapper promise
+     * @param {string} requestId - The unique identifier of the request
+     * @param {Function} resolveWrapper - The function to resolve the wrapper promise
+     * @param {Promise} requestPromise - The request promise
+     * @param {boolean} isCancelled - Whether the request was cancelled
+     * @private
+     */
+    #_completeRequest(requestId, resolveWrapper, requestPromise, isCancelled) {
+        this.activeRequests.delete(requestId);
+        if (!isCancelled) {
+            resolveWrapper(requestPromise);
+        }
+    }
+
+    /**
+     * Internal method that handles the core request logic.
+     * @param {string} requestId - Unique identifier for the request
+     * @param {Promise|import('./index.d.ts').RequestFunction|string} requestPromise - The request promise, function, or URL string
+     * @param {import('./index.d.ts').BaseRequestOptions} options - Configuration options
+     * @returns {Promise} A Promise that resolves/rejects based on the most recent request
+     * @private
+     */
+    #_request(requestId, requestPromise, options = {}) {
+        const abortController = this.#_resolveAbortController(options.abortController);
+
+        // Handle different types of requestPromise inputs
+        // Priority: Function (Custom logic) > String (URL) > Promise (axios, fetch, etc.)
+        if (typeof requestPromise === 'function') {
+            // Function: custom logic for any library (axios, ajax, etc.)
+            requestPromise = requestPromise({ options: this.#_prepareRequestOptions(options, abortController.signal) });
+        } else if (typeof requestPromise === 'string') {
+            // String (URL): make fetch internally
+            requestPromise = fetch(requestPromise, this.#_prepareRequestOptions(options, abortController.signal));
+        }
+
+        // Cancel previous request with the same identifier if it exists
+        if (!options.noCancel) this.cancel(requestId);
+
+        // Create a wrapper promise that will be resolved/rejected based on the request
+        let resolveWrapper, rejectWrapper;
+        const wrapperPromise = new Promise((resolve, reject) => {
+            resolveWrapper = resolve;
+            rejectWrapper = reject;
+        });
+
+        /**
+         * @type {import('./index.d.ts').ActiveRequest}
+         */
+        const requestInfo = {
+            promise: requestPromise,
+            abortController: abortController,
+            cancelToken: options.cancelToken || null,
+            resolveWrapper: resolveWrapper,
+            rejectWrapper: rejectWrapper,
+            isCancelled: false,
+        };
+
+        this.activeRequests.set(requestId, requestInfo);
+
+        // Handle request promise completion
+        if (requestPromise && typeof requestPromise.then === 'function') {
+            try {
+                let req = requestPromise.then((result) => {
+                    if (this.activeRequests.get(requestId) === requestInfo) {
+                        this.#_completeRequest(requestId, resolveWrapper, result, requestInfo.isCancelled);
+                    }
+                });
+                if (req.catch)
+                    req.catch((error) => {
+                        onError(this, error);
+                    });
+            } catch (error) {
+                onError(this, error);
+            }
+            function onError(scope, error) {
+                // Check if this requestInfo is still the active one, or if it was cancelled
+                const currentRequestInfo = scope.activeRequests.get(requestId);
+                if (currentRequestInfo !== requestInfo) return;
+                if (requestInfo.isCancelled) {
+                    // Already cancelled: let cancel() handle cleanup and reject the wrapper promise
+                    scope.cancel(requestId);
+                    return;
+                }
+                // Only delete if this is still the active request
+                scope.#_deleteRequest(requestId, rejectWrapper, error);
+            }
+        } else {
+            // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
+            // underlying XHR finishes so a later duplicate can still cancel it.
+            const xhr =
+                requestPromise &&
+                (requestPromise.xhr ||
+                    (typeof XMLHttpRequest !== 'undefined' && requestPromise instanceof XMLHttpRequest
+                        ? requestPromise
+                        : null));
+            const finish = () => {
+                if (this.activeRequests.get(requestId) !== requestInfo) return;
+                this.#_completeRequest(requestId, resolveWrapper, requestPromise, requestInfo.isCancelled);
+            };
+            if (xhr && typeof xhr.addEventListener === 'function') {
+                xhr.addEventListener('loadend', finish);
+            } else {
+                setTimeout(finish, 0);
+            }
+        }
+        return wrapperPromise;
     }
 }
 
