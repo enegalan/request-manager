@@ -107,9 +107,6 @@ class RequestManager {
             return () => ExtAjax.abort(req);
         }
         if (req.xhr && typeof req.xhr.abort === 'function') return () => req.xhr.abort();
-        if (typeof XMLHttpRequest !== 'undefined' && req instanceof XMLHttpRequest) {
-            return () => req.abort();
-        }
         return null;
     }
 
@@ -132,6 +129,35 @@ class RequestManager {
     }
 
     /**
+     * Deletes a request from the active requests map and rejects the wrapper promise
+     * @param {string} requestId - The unique identifier of the request
+     * @param {Function} rejectWrapper - The function to reject the wrapper promise
+     * @param {*} error - The error to reject the wrapper promise with; the wrapper is not rejected if null/undefined
+     * @private
+     */
+    #_deleteRequest(requestId, rejectWrapper, error) {
+        this.activeRequests.delete(requestId);
+        if (error !== null && error !== undefined) {
+            rejectWrapper(error);
+        }
+    }
+
+    /**
+     * Completes a request by deleting it from the active requests map and resolving the wrapper promise
+     * @param {string} requestId - The unique identifier of the request
+     * @param {Function} resolveWrapper - The function to resolve the wrapper promise
+     * @param {Promise} requestPromise - The request promise
+     * @param {boolean} isCancelled - Whether the request was cancelled
+     * @private
+     */
+    #_completeRequest(requestId, resolveWrapper, requestPromise, isCancelled) {
+        this.activeRequests.delete(requestId);
+        if (!isCancelled) {
+            resolveWrapper(requestPromise);
+        }
+    }
+
+    /**
      * Internal method that handles the core request logic.
      *
      * @param {string} requestId - Unique identifier for the request
@@ -144,7 +170,6 @@ class RequestManager {
      * @private
      */
     #_request(requestId, requestPromise, options = {}) {
-        options = options || {};
         const abortController = this.#_resolveAbortController(options.abortController);
 
         // Handle different types of requestPromise inputs
@@ -172,7 +197,6 @@ class RequestManager {
             promise: requestPromise,
             abortController: abortController,
             cancelToken: options.cancelToken || null,
-            wrapperPromise: wrapperPromise,
             resolveWrapper: resolveWrapper,
             rejectWrapper: rejectWrapper,
             isCancelled: false,
@@ -184,9 +208,8 @@ class RequestManager {
         if (requestPromise && typeof requestPromise.then === 'function') {
             try {
                 let req = requestPromise.then((result) => {
-                    if (this.activeRequests.get(requestId) === requestInfo && !requestInfo.isCancelled) {
-                        this.activeRequests.delete(requestId);
-                        resolveWrapper(result);
+                    if (this.activeRequests.get(requestId) === requestInfo) {
+                        this.#_completeRequest(requestId, resolveWrapper, result, requestInfo.isCancelled);
                     }
                 });
                 if (req.catch)
@@ -200,15 +223,13 @@ class RequestManager {
                 // Check if this requestInfo is still the active one, or if it was cancelled
                 const currentRequestInfo = scope.activeRequests.get(requestId);
                 if (currentRequestInfo !== requestInfo) return;
-                // Only delete if this is still the active request
-                scope.activeRequests.delete(requestId);
-                if (!requestInfo.isCancelled) {
-                    rejectWrapper(error);
+                if (requestInfo.isCancelled) {
+                    // Already cancelled: let cancel() handle cleanup and reject the wrapper promise
+                    scope.cancel(requestId);
                     return;
                 }
-                if (scope.getOptions().verbose) {
-                    rejectWrapper(new Error(`Request ${requestId} was cancelled`));
-                }
+                // Only delete if this is still the active request
+                scope.#_deleteRequest(requestId, rejectWrapper, error);
             }
         } else {
             // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
@@ -221,8 +242,7 @@ class RequestManager {
                         : null));
             const finish = () => {
                 if (this.activeRequests.get(requestId) !== requestInfo) return;
-                this.activeRequests.delete(requestId);
-                if (!requestInfo.isCancelled) resolveWrapper(requestPromise);
+                this.#_completeRequest(requestId, resolveWrapper, requestPromise, requestInfo.isCancelled);
             };
             if (xhr && typeof xhr.addEventListener === 'function') {
                 xhr.addEventListener('loadend', finish);
@@ -358,13 +378,12 @@ class RequestManager {
      * requestManager.axios('/api/lazy?load=2', { noCancel: true });
      */
     axios(url, options = {}, axiosInstance = null) {
-        const requestOptions = options || {};
         const axiosLib = axiosInstance || axios;
         const cancelToken = axiosLib.CancelToken.source();
-        const requestId = this.getRequestId(url, requestOptions);
-        return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...requestOptions }), {
+        const requestId = this.getRequestId(url, options);
+        return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...options }), {
             cancelToken: cancelToken,
-            ...requestOptions,
+            ...options,
         });
     }
 
@@ -453,19 +472,18 @@ class RequestManager {
      * requestManager.xhr('/api/lazy?load=2', { noCancel: true });
      */
     xhr(url, options = {}) {
-        const requestOptions = options || {};
-        const requestId = this.getRequestId(url, requestOptions);
+        const requestId = this.getRequestId(url, options);
         const xhrFunction = ({ options: fetchOptions }) => {
             // Create XMLHttpRequest
             const xhr = new XMLHttpRequest();
-            const method = (requestOptions.method || 'GET').toUpperCase();
+            const method = (options.method || 'GET').toUpperCase();
             // Create a promise that wraps the XHR request
             const xhrPromise = new Promise((resolve, reject) => {
                 xhr.onload = function () {
                     if (xhr.status >= 200 && xhr.status < 300) {
                         let response = xhr.response;
                         if (
-                            requestOptions.responseType === 'json' ||
+                            options.responseType === 'json' ||
                             (xhr.getResponseHeader('Content-Type') &&
                                 xhr.getResponseHeader('Content-Type').includes('application/json'))
                         ) {
@@ -508,26 +526,26 @@ class RequestManager {
                 xhr.open(method, url, true);
 
                 // Set response type
-                if (requestOptions.responseType) xhr.responseType = requestOptions.responseType;
+                if (options.responseType) xhr.responseType = options.responseType;
                 // Set withCredentials
-                if (requestOptions.withCredentials !== undefined) xhr.withCredentials = requestOptions.withCredentials;
+                if (options.withCredentials !== undefined) xhr.withCredentials = options.withCredentials;
                 // Set timeout
-                if (requestOptions.timeout !== undefined) xhr.timeout = requestOptions.timeout;
+                if (options.timeout !== undefined) xhr.timeout = options.timeout;
                 // Set headers
-                if (requestOptions.headers)
-                    Object.keys(requestOptions.headers).forEach((key) => {
-                        xhr.setRequestHeader(key, requestOptions.headers[key]);
+                if (options.headers)
+                    Object.keys(options.headers).forEach((key) => {
+                        xhr.setRequestHeader(key, options.headers[key]);
                     });
 
                 // Connect abort signal to xhr.abort()
                 if (fetchOptions.signal) fetchOptions.signal.addEventListener('abort', () => xhr.abort());
 
                 // Send the request
-                xhr.send(requestOptions.body || null);
+                xhr.send(options.body || null);
             });
             return xhrPromise;
         };
-        return this.#_request(requestId, xhrFunction, requestOptions);
+        return this.#_request(requestId, xhrFunction, options);
     }
 
     /**
@@ -546,30 +564,31 @@ class RequestManager {
      * requestManager.cancel(id);
      */
     getRequestId(url, options = {}) {
-        options = options || {};
-        let requestKey = options.requestKey || null;
-        const noCancel = options.noCancel || false;
-        const includeQuery = options.includeQuery || false;
-        if (noCancel) {
-            // Generate a unique ID to prevent cancellation
-            return `request_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+        let requestKey = options.requestKey;
+
+        const prefix = 'request_';
+
+        // Generate a unique ID to prevent cancellation for non cancelable requests
+        if (options.noCancel) {
+            return `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
         }
-        if (requestKey !== null && requestKey !== undefined) {
-            if (typeof requestKey === 'function') {
-                try {
-                    requestKey = requestKey();
-                } catch {
-                    requestKey = null;
-                }
+
+        // Handle function requestKey
+        if (typeof requestKey === 'function') {
+            try {
+                requestKey = requestKey();
+            } catch {
+                requestKey = null;
             }
-            if (requestKey !== null && requestKey !== undefined) return `request_${String(requestKey)}`;
         }
-        // Use cleaned URL as key when requestKey is null/undefined
+        if (requestKey !== null && requestKey !== undefined) return `${prefix}${String(requestKey)}`;
+
+        // Use cleaned URL as key as fallback
         let cleanedUrl = url || '';
         if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
         if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
-        if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
-        return `request_${cleanedUrl}`;
+        if (!options.includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
+        return `${prefix}${cleanedUrl}`;
     }
 
     /**
@@ -600,10 +619,7 @@ class RequestManager {
         }
 
         // Reject the wrapper promise
-        if (this.getOptions().verbose) {
-            requestInfo.rejectWrapper(new Error(`Request ${requestId} was cancelled`));
-        }
-        this.activeRequests.delete(requestId); // Remove from active requests
+        this.#_deleteRequest(requestId, requestInfo.rejectWrapper, this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null);
         return true;
     }
 
