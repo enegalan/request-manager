@@ -5,29 +5,16 @@
  * This library allows you to manage HTTP requests from any library (ajax, Ext.Ajax, axios, fetch, etc.)
  * by accepting Promises as parameters. When a request is repeated with the same identifier,
  * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.
-
- * @param {Object} managerOptions - The options for the manager
- * @param {boolean} managerOptions.verbose - If true, cancellation errors will include messages
- * @returns {RequestManager} A new RequestManager instance
 */
 class RequestManager {
     constructor(managerOptions = {}) {
         /**
          * Map to store active requests by their unique identifier.
-         * Each entry contains:
-         * - promise: The original promise
-         * - abortController: AbortController instance (if available)
-         * - cancelToken: Cancel token (for axios compatibility)
-         * - wrapperPromise: The promise that wraps the request
-         * - resolveWrapper: The function to resolve the wrapper promise
-         * - rejectWrapper: The function to reject the wrapper promise
-         * - isCancelled: Whether the request has been cancelled
-         * - verbose: Whether to include verbose messages in the cancellation error
+         * @type {Map<string, import('./index.d.ts').ActiveRequest>}
          */
         this.activeRequests = new Map();
         /**
-         * Manager options: the options that were passed to the constructor
-         * @type {Object}
+         * @type {import('./index.d.ts').ManagerOptions}
          */
         this.managerOptions = managerOptions;
         /**
@@ -40,7 +27,7 @@ class RequestManager {
 
     /**
      * Gets the manager options
-     * @returns {Object} Manager options
+     * @returns {import('./index.d.ts').ManagerOptions} Manager options
      */
     getOptions() {
         return this.managerOptions;
@@ -48,7 +35,7 @@ class RequestManager {
 
     /**
      * Sets the manager options
-     * @param {Object} options - The options to set
+     * @param {import('./index.d.ts').ManagerOptions} options - The options to set
      */
     setOptions(options) {
         this.managerOptions = options;
@@ -58,9 +45,7 @@ class RequestManager {
      * Creates a new AbortController and returns its signal for the next request()
      * (one getSignal → one request). Do not use for parallel requests; use fetch(),
      * axios(), or request(url, ({ options }) => ...) instead — they create their own signal.
-     *
      * @returns {AbortSignal} The signal from a new AbortController
-     *
      * @example
      * const signal = requestManager.getSignal();
      * requestManager.request('/api/users', fetch('/api/users', { signal }));
@@ -111,21 +96,21 @@ class RequestManager {
     }
 
     /**
-     * Prepares fetch options by merging options and removing custom properties
-     * @param {Object} options - Configuration options
-     * @param {AbortSignal} signal - Abort signal to add to fetch options
-     * @returns {Object} Prepared fetch options
+     * Prepares request options by merging options and removing custom properties
+     * @param {import('./index.d.ts').RequestOptions} options - Configuration options
+     * @param {AbortSignal} signal - Abort signal to add to request options
+     * @returns {Object} Prepared request options
      * @private
      */
-    #_prepareFetchOptions(options, signal) {
-        const fetchOptions = {};
+    #_prepareRequestOptions(options, signal) {
+        const requestOptions = {};
         const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
         Object.keys(options).forEach((key) => {
             if (customOptions.includes(key)) return;
-            fetchOptions[key] = options[key];
+            requestOptions[key] = options[key];
         });
-        fetchOptions.signal = signal;
-        return fetchOptions;
+        requestOptions.signal = signal;
+        return requestOptions;
     }
 
     /**
@@ -159,13 +144,9 @@ class RequestManager {
 
     /**
      * Internal method that handles the core request logic.
-     *
      * @param {string} requestId - Unique identifier for the request
-     * @param {Promise|Function|string} requestPromise - The request promise, function, or URL string
-     * @param {Object} options - Configuration options
-     * @param {AbortController} options.abortController - AbortController instance
-     * @param {Function} options.cancelToken - Cancel token or cancel function
-     * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID
+     * @param {Promise|import('./index.d.ts').RequestFunction|string} requestPromise - The request promise, function, or URL string
+     * @param {import('./index.d.ts').BaseRequestOptions} options - Configuration options
      * @returns {Promise} A Promise that resolves/rejects based on the most recent request
      * @private
      */
@@ -176,13 +157,13 @@ class RequestManager {
         // Priority: Function (Custom logic) > String (URL) > Promise (axios, fetch, etc.)
         if (typeof requestPromise === 'function') {
             // Function: custom logic for any library (axios, ajax, etc.)
-            requestPromise = requestPromise({ options: this.#_prepareFetchOptions(options, abortController.signal) });
+            requestPromise = requestPromise({ options: this.#_prepareRequestOptions(options, abortController.signal) });
         } else if (typeof requestPromise === 'string') {
             // String (URL): make fetch internally
-            requestPromise = fetch(requestPromise, this.#_prepareFetchOptions(options, abortController.signal));
+            requestPromise = fetch(requestPromise, this.#_prepareRequestOptions(options, abortController.signal));
         }
 
-        // Cancel previous request with the same ID if it exists
+        // Cancel previous request with the same identifier if it exists
         if (!options.noCancel) this.cancel(requestId);
 
         // Create a wrapper promise that will be resolved/rejected based on the request
@@ -192,7 +173,9 @@ class RequestManager {
             rejectWrapper = reject;
         });
 
-        // Store the request information
+        /**
+         * @type {import('./index.d.ts').ActiveRequest}
+         */
         const requestInfo = {
             promise: requestPromise,
             abortController: abortController,
@@ -255,27 +238,16 @@ class RequestManager {
 
     /**
      * Executes an HTTP request, cancelling any previous request with the same identifier.
-     *
      * @param {string} url - The URL to request
-     * @param {Promise|Function} requestPromise - The request promise or function that returns a promise
-     * @param {Object} options - Optional configuration
-     * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
-     *                                                    If provided, requests with the same key will cancel previous ones.
-     *                                                    Can be a string, number, or function that returns a key.
-     * @param {AbortController} options.abortController - AbortController instance (created automatically if not provided)
-     * @param {Function} options.cancelToken - Cancel token or cancel function for other libraries
-     * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
-     *                                                    Any other properties are passed as fetch options (method, headers, body, etc.)
+     * @param {Promise|import('./index.d.ts').RequestFunction|string} requestPromise - The request promise or function that returns a promise
+     * @param {import('./index.d.ts').RequestOptions} options - Optional configuration
      * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-     *
      * @example
      * // Request with Promise
      * requestManager.request('/api/users', axios.get('/api/users', { cancelToken: axios.CancelToken.source().token }));
-     *
      * @example
      * // Request with Function
      * requestManager.request('/api/users', ({ options }) => fetch('/api/users', { signal: options.signal, ...options }));
-     *
      * @example
      * // Request with Promise and custom cancellation grouping with requestKey
      * const options = {
@@ -283,12 +255,6 @@ class RequestManager {
      *   cancelToken: axios.CancelToken.source().cancel
      * }
      * requestManager.request('/api/users', axios.get('/api/users', options), options);
-     *
-     * @example
-     * // Request with noCancel to allow concurrent requests (e.g., lazy loading)
-     * requestManager.request('/api/lazy?load=1', fetch('/api/lazy?load=1'), { noCancel: true });
-     * requestManager.request('/api/lazy?load=2', fetch('/api/lazy?load=2'), { noCancel: true });
-     * // Both requests will execute concurrently without canceling each other
      */
     request(url, requestPromise, options = {}) {
         return this.#_request(this.getRequestId(url, options), requestPromise, options);
@@ -296,22 +262,12 @@ class RequestManager {
 
     /**
      * Executes an HTTP request using fetch, cancelling any previous request with the same identifier.
-     *
      * @param {string} url - The URL to fetch
-     * @param {Object} options - Optional configuration
-     * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
-     *                                                    If provided, requests with the same key will cancel previous ones.
-     *                                                    Can be a string, number, or function that returns a key.
-     * @param {AbortController} options.abortController - AbortController instance (created automatically if not provided)
-     * @param {Function} options.cancelToken - Cancel token or cancel function for other libraries
-     * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
-     *                                                    Any other properties are passed as fetch options (method, headers, body, etc.)
+     * @param {import('./index.d.ts').FetchOptions} options - Optional configuration
      * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-     *
      * @example
      * // Simple GET request
      * requestManager.fetch('/api/users');
-     *
      * @example
      * // POST request with options
      * requestManager.fetch('/api/users', {
@@ -319,18 +275,11 @@ class RequestManager {
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({ name: 'John' })
      * });
-     *
      * @example
      * // Request with requestKey for custom cancellation grouping with requestKey
      * requestManager.fetch('/api/users', {
      *   requestKey: 'get-users'
      * });
-     *
-     * @example
-     * // Request with noCancel to allow concurrent requests (e.g., lazy loading)
-     * requestManager.fetch('/api/lazy?load=1', { noCancel: true });
-     * requestManager.fetch('/api/lazy?load=2', { noCancel: true });
-     * // Both requests will execute concurrently without canceling each other
      */
     fetch(url, options = {}) {
         return this.#_request(this.getRequestId(url, options), url, options);
@@ -338,26 +287,17 @@ class RequestManager {
 
     /**
      * Executes an HTTP request using axios, cancelling any previous request with the same identifier.
-     *
      * @param {string} url - The URL to request
-     * @param {Object} options - Optional configuration
-     * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
-     *                                                    If provided, requests with the same key will cancel previous ones.
-     *                                                    Can be a string, number, or function that returns a key.
-     * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
-     *                                                    Any other properties are passed as axios options (method, headers, params, data, etc.)
-     * @param {Object} axiosInstance - Optional axios instance to use. If not provided, uses global axios.
+     * @param {import('./index.d.ts').AxiosRequestOptions} options - Optional configuration
+     * @param {import('./index.d.ts').AxiosInstance|import('./index.d.ts').AxiosStatic|null} axiosInstance - Optional axios instance to use. If not provided, uses global axios.
      * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-     *
      * @example
      * // Simple GET request (uses global axios)
      * requestManager.axios('/api/users');
-     *
      * @example
      * // With custom axios instance
      * const myAxios = axios.create({ baseURL: 'https://api.example.com' });
      * requestManager.axios('/users', {}, myAxios);
-     *
      * @example
      * // POST request with options
      * requestManager.axios('/api/users', {
@@ -365,17 +305,11 @@ class RequestManager {
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({ name: 'John' })
      * });
-     *
      * @example
      * // Request with requestKey for custom cancellation grouping with requestKey
      * requestManager.axios('/api/users', {
      *   requestKey: 'get-users'
      * });
-     *
-     * @example
-     * // Request with noCancel to allow concurrent requests
-     * requestManager.axios('/api/lazy?load=1', { noCancel: true });
-     * requestManager.axios('/api/lazy?load=2', { noCancel: true });
      */
     axios(url, options = {}, axiosInstance = null) {
         const axiosLib = axiosInstance || axios;
@@ -389,21 +323,13 @@ class RequestManager {
 
     /**
      * Executes an HTTP request using jQuery.ajax, cancelling any previous request with the same identifier.
-     *
-     * @param {Function} ajaxFunction - A function that receives { url, ...options } and returns a Promise
+     * @param {import('./index.d.ts').AjaxFunction} ajaxFunction - A function that receives { url, ...options } and returns a Promise
      * @param {string} url - The URL to request
-     * @param {Object} options - Optional configuration
-     * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
-     *                                                    If provided, requests with the same key will cancel previous ones.
-     *                                                    Can be a string, number, or function that returns a key.
-     * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
-     *                                                    Any other properties are passed to the ajax method function
+     * @param {import('./index.d.ts').BaseRequestOptions & Record<string, any>} options - Optional configuration
      * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-     *
      * @example
      * // Simple GET request
      * requestManager.ajax(ajaxFunction, '/api/users');
-     *
      * @example
      * // POST request with options
      * requestManager.ajax(ajaxFunction, '/api/users', {
@@ -411,7 +337,6 @@ class RequestManager {
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({ name: 'John' })
      * });
-     *
      * @example
      * // Request with requestKey for custom cancellation grouping with requestKey
      * requestManager.ajax(ajaxFunction, '/api/users', {
@@ -433,25 +358,12 @@ class RequestManager {
 
     /**
      * Executes an HTTP request using XMLHttpRequest, cancelling any previous request with the same identifier.
-     *
      * @param {string} url - The URL to request
-     * @param {Object} options - Optional configuration
-     * @param {string} options.method - HTTP method (GET, POST, PUT, DELETE, etc.). Defaults to 'GET'.
-     * @param {Object} options.headers - Headers object to set on the request
-     * @param {string|FormData|Blob|ArrayBuffer} options.body - Request body
-     * @param {string} options.responseType - Response type ('text', 'json', 'blob', 'arraybuffer', 'document'). Defaults to 'text'.
-     * @param {boolean} options.withCredentials - Whether to send credentials with the request
-     * @param {number} options.timeout - Request timeout in milliseconds
-     * @param {string|number|Function} options.requestKey - Key to identify duplicate requests.
-     *                                                    If provided, requests with the same key will cancel previous ones.
-     *                                                    Can be a string, number, or function that returns a key.
-     * @param {boolean} options.noCancel - If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
-     * @returns {Promise} A Promise that resolves/rejects based on the most recent request
-     *
+     * @param {import('./index.d.ts').XhrOptions} options - Optional configuration
+     * @returns {Promise<import('./index.d.ts').XhrResponse>} A Promise that resolves/rejects based on the most recent request
      * @example
      * // Simple GET request
      * requestManager.xhr('/api/users');
-     *
      * @example
      * // POST request with options
      * requestManager.xhr('/api/users', {
@@ -459,20 +371,15 @@ class RequestManager {
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({ name: 'John' })
      * });
-     *
      * @example
      * // Request with requestKey for custom cancellation grouping
      * requestManager.xhr('/api/users', {
      *   requestKey: 'get-users'
      * });
-     *
-     * @example
-     * // Request with noCancel to allow concurrent requests
-     * requestManager.xhr('/api/lazy?load=1', { noCancel: true });
-     * requestManager.xhr('/api/lazy?load=2', { noCancel: true });
      */
     xhr(url, options = {}) {
         const requestId = this.getRequestId(url, options);
+        /** @type {import('./index.d.ts').RequestFunction<import('./index.d.ts').XhrResponse>} */
         const xhrFunction = ({ options: fetchOptions }) => {
             // Create XMLHttpRequest
             const xhr = new XMLHttpRequest();
@@ -549,15 +456,10 @@ class RequestManager {
     }
 
     /**
-     * Returns the request ID that RequestManager would assign for a URL and options.
-     *
+     * Returns the request identifier for a URL and options.
      * @param {string} url - The URL used when starting the request
-     * @param {Object} options - Same options used for the request
-     * @param {string|number|Function} options.requestKey - Optional key override
-     * @param {boolean} options.includeQuery - Keep query string in the URL-based ID
-     * @param {boolean} options.noCancel - If true, returns a new unique ID
+     * @param {import('./index.d.ts').BaseRequestOptions} options - Same options used for the request
      * @returns {string} The request identifier
-     *
      * @example
      * requestManager.fetch('/api/users');
      * const id = requestManager.getRequestId('/api/users');
@@ -568,7 +470,7 @@ class RequestManager {
 
         const prefix = 'request_';
 
-        // Generate a unique ID to prevent cancellation for non cancelable requests
+        // Generate a unique identifier to prevent cancellation for non cancelable requests
         if (options.noCancel) {
             return `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
         }
@@ -593,11 +495,11 @@ class RequestManager {
 
     /**
      * Cancels a specific request by its identifier.
-     *
      * @param {string} requestId - The unique identifier of the request to cancel
      * @returns {boolean} True if the request was found and cancelled, false otherwise
      */
     cancel(requestId) {
+        /** @type {import('./index.d.ts').ActiveRequest|undefined} */
         const requestInfo = this.activeRequests.get(requestId);
         if (!requestInfo) return false;
 
@@ -642,7 +544,6 @@ class RequestManager {
 
     /**
      * Cancels all active requests.
-     *
      * @returns {number} The number of requests that were cancelled
      */
     cancelAll() {
@@ -656,7 +557,6 @@ class RequestManager {
 
     /**
      * Checks if a request with the given identifier is currently active.
-     *
      * @param {string} requestId - The unique identifier to check
      * @returns {boolean} True if the request is active, false otherwise
      */
@@ -666,7 +566,6 @@ class RequestManager {
 
     /**
      * Gets the number of active requests.
-     *
      * @returns {number} The number of currently active requests
      */
     getActiveCount() {
