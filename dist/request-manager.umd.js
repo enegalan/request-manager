@@ -42,24 +42,11 @@
              */
             this.managerOptions = managerOptions;
             /**
-             * Options for the current request: will be flushed after the request is completed
-             * @type {Object}
-             */
-            this.options = {};
-            /**
              * One-shot AbortController for getSignal()/getAbortController() handoff.
              * Consumed by the next request that does not pass options.abortController.
              * @type {AbortController|null}
              */
             this.abortController = null;
-        }
-
-        /**
-         * Flushes the options for the current request
-         * @private
-         */
-        #_flushRequestOptions() {
-            this.options = {};
         }
 
         /**
@@ -79,15 +66,6 @@
             if (options.verbose !== undefined) {
                 this.verbose = options.verbose;
             }
-        }
-
-        /**
-         * Sets the options for the current request
-         * @param {Object} options - The options to set
-         * @private
-         */
-        #_setRequestOptions(options) {
-            this.options = options;
         }
 
         /**
@@ -187,12 +165,11 @@
          * Prepares fetch options by merging options and removing custom properties
          * @param {Object} options - Configuration options
          * @param {AbortSignal} signal - Abort signal to add to fetch options
-         * @param {Object} additionalOptions - Additional options to merge
          * @returns {Object} Prepared fetch options
          * @private
          */
-        #_prepareFetchOptions(options, signal, additionalOptions = {}) {
-            const fetchOptions = Object.assign({}, additionalOptions);
+        #_prepareFetchOptions(options, signal) {
+            const fetchOptions = {};
             const customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
             Object.keys(options).forEach((key) => {
                 if (customOptions.includes(key)) return;
@@ -215,8 +192,6 @@
          * @private
          */
         #_request(requestId, requestPromise, options = {}) {
-            this.#_setRequestOptions(options);
-            this.#_flushRequestOptions();
             const abortController = this.#_resolveAbortController(options.abortController);
 
             // Handle different types of requestPromise inputs
