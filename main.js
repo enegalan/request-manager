@@ -26,11 +26,6 @@ class RequestManager {
          */
         this.activeRequests = new Map();
         /**
-         * Verbose mode: if true, cancellation errors will include messages
-         * @type {boolean}
-         */
-        this.verbose = managerOptions.verbose || false;
-        /**
          * Manager options: the options that were passed to the constructor
          * @type {Object}
          */
@@ -57,9 +52,6 @@ class RequestManager {
      */
     setOptions(options) {
         this.managerOptions = options;
-        if (options.verbose !== undefined) {
-            this.verbose = options.verbose;
-        }
     }
 
     /**
@@ -122,40 +114,6 @@ class RequestManager {
     }
 
     /**
-     * Generates a request identifier based on the requestKey or URL
-     * @param {string} url - The URL of the request
-     * @param {string|number|Function} requestKey - Optional key to generate a deterministic ID.
-     *                                              If provided, requests with the same key will share the same ID.
-     *                                              If null or undefined, the cleaned URL will be used as the key.
-     * @param {boolean} noCancel - If true, generates a unique ID to prevent cancellation
-     * @param {boolean} includeQuery - If true, keeps query string in the URL-based key
-     * @returns {string} A unique request identifier
-     * @private
-     */
-    #_generateRequestId(url, requestKey = null, noCancel = false, includeQuery = false) {
-        if (noCancel) {
-            // Generate a unique ID to prevent cancellation
-            return `request_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-        }
-        if (requestKey !== null && requestKey !== undefined) {
-            if (typeof requestKey === 'function') {
-                try {
-                    requestKey = requestKey();
-                } catch {
-                    requestKey = null;
-                }
-            }
-            if (requestKey !== null && requestKey !== undefined) return `request_${String(requestKey)}`;
-        }
-        // Use cleaned URL as key when requestKey is null/undefined
-        let cleanedUrl = url || '';
-        if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
-        if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
-        if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
-        return `request_${cleanedUrl}`;
-    }
-
-    /**
      * Prepares fetch options by merging options and removing custom properties
      * @param {Object} options - Configuration options
      * @param {AbortSignal} signal - Abort signal to add to fetch options
@@ -186,18 +144,17 @@ class RequestManager {
      * @private
      */
     #_request(requestId, requestPromise, options = {}) {
+        options = options || {};
         const abortController = this.#_resolveAbortController(options.abortController);
 
         // Handle different types of requestPromise inputs
         // Priority: Function (Custom logic) > String (URL) > Promise (axios, fetch, etc.)
         if (typeof requestPromise === 'function') {
             // Function: custom logic for any library (axios, ajax, etc.)
-            const fetchOptions = this.#_prepareFetchOptions(options, abortController.signal);
-            requestPromise = requestPromise({ options: fetchOptions });
+            requestPromise = requestPromise({ options: this.#_prepareFetchOptions(options, abortController.signal) });
         } else if (typeof requestPromise === 'string') {
             // String (URL): make fetch internally
-            const fetchOptions = this.#_prepareFetchOptions(options, abortController.signal);
-            requestPromise = fetch(requestPromise, fetchOptions);
+            requestPromise = fetch(requestPromise, this.#_prepareFetchOptions(options, abortController.signal));
         }
 
         // Cancel previous request with the same ID if it exists
@@ -219,7 +176,6 @@ class RequestManager {
             resolveWrapper: resolveWrapper,
             rejectWrapper: rejectWrapper,
             isCancelled: false,
-            verbose: this.verbose,
         };
 
         this.activeRequests.set(requestId, requestInfo);
@@ -250,7 +206,7 @@ class RequestManager {
                     rejectWrapper(error);
                     return;
                 }
-                if (requestInfo.verbose) {
+                if (scope.getOptions().verbose) {
                     rejectWrapper(new Error(`Request ${requestId} was cancelled`));
                 }
             }
@@ -315,14 +271,7 @@ class RequestManager {
      * // Both requests will execute concurrently without canceling each other
      */
     request(url, requestPromise, options = {}) {
-        const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(
-            url,
-            requestOptions.requestKey,
-            requestOptions.noCancel,
-            requestOptions.includeQuery
-        );
-        return this.#_request(requestId, requestPromise, requestOptions);
+        return this.#_request(this.getRequestId(url, options), requestPromise, options);
     }
 
     /**
@@ -364,14 +313,7 @@ class RequestManager {
      * // Both requests will execute concurrently without canceling each other
      */
     fetch(url, options = {}) {
-        const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(
-            url,
-            requestOptions.requestKey,
-            requestOptions.noCancel,
-            requestOptions.includeQuery
-        );
-        return this.#_request(requestId, url, requestOptions);
+        return this.#_request(this.getRequestId(url, options), url, options);
     }
 
     /**
@@ -419,12 +361,7 @@ class RequestManager {
         const requestOptions = options || {};
         const axiosLib = axiosInstance || axios;
         const cancelToken = axiosLib.CancelToken.source();
-        const requestId = this.#_generateRequestId(
-            url,
-            requestOptions.requestKey,
-            requestOptions.noCancel,
-            requestOptions.includeQuery
-        );
+        const requestId = this.getRequestId(url, requestOptions);
         return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...requestOptions }), {
             cancelToken: cancelToken,
             ...requestOptions,
@@ -464,19 +401,12 @@ class RequestManager {
      */
     ajax(ajaxFunction, url, options = {}) {
         if (typeof ajaxFunction !== 'function') throw new Error('ajaxFunction parameter must be a function');
-        const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(
-            url,
-            requestOptions.requestKey,
-            requestOptions.noCancel,
-            requestOptions.includeQuery
-        );
         try {
             const abortController = this.#_resolveAbortController(options.abortController);
-            const req = ajaxFunction({ url, ...requestOptions });
+            const req = ajaxFunction({ url, ...options });
             this.addAbortListener(this.#_resolveAbortMethod(req), abortController.signal);
             // Pass the AbortController to avoid creating another one for this request
-            return this.#_request(requestId, req, { ...requestOptions, abortController: abortController });
+            return this.#_request(this.getRequestId(url, options), req, { ...options, abortController: abortController });
         } catch (error) {
             return Promise.reject(error);
         }
@@ -524,12 +454,7 @@ class RequestManager {
      */
     xhr(url, options = {}) {
         const requestOptions = options || {};
-        const requestId = this.#_generateRequestId(
-            url,
-            requestOptions.requestKey,
-            requestOptions.noCancel,
-            requestOptions.includeQuery
-        );
+        const requestId = this.getRequestId(url, requestOptions);
         const xhrFunction = ({ options: fetchOptions }) => {
             // Create XMLHttpRequest
             const xhr = new XMLHttpRequest();
@@ -608,9 +533,6 @@ class RequestManager {
     /**
      * Returns the request ID that RequestManager would assign for a URL and options.
      *
-     * Note: with noCancel => true each call generates a new unique ID, so the value
-     * returned here will not match an already in-flight noCancel request.
-     *
      * @param {string} url - The URL used when starting the request
      * @param {Object} options - Same options used for the request
      * @param {string|number|Function} options.requestKey - Optional key override
@@ -624,13 +546,30 @@ class RequestManager {
      * requestManager.cancel(id);
      */
     getRequestId(url, options = {}) {
-        const requestOptions = options || {};
-        return this.#_generateRequestId(
-            url,
-            requestOptions.requestKey,
-            requestOptions.noCancel,
-            requestOptions.includeQuery
-        );
+        options = options || {};
+        let requestKey = options.requestKey || null;
+        const noCancel = options.noCancel || false;
+        const includeQuery = options.includeQuery || false;
+        if (noCancel) {
+            // Generate a unique ID to prevent cancellation
+            return `request_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+        }
+        if (requestKey !== null && requestKey !== undefined) {
+            if (typeof requestKey === 'function') {
+                try {
+                    requestKey = requestKey();
+                } catch {
+                    requestKey = null;
+                }
+            }
+            if (requestKey !== null && requestKey !== undefined) return `request_${String(requestKey)}`;
+        }
+        // Use cleaned URL as key when requestKey is null/undefined
+        let cleanedUrl = url || '';
+        if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
+        if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
+        if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
+        return `request_${cleanedUrl}`;
     }
 
     /**
@@ -661,7 +600,7 @@ class RequestManager {
         }
 
         // Reject the wrapper promise
-        if (requestInfo.rejectWrapper && this.verbose) {
+        if (this.getOptions().verbose) {
             requestInfo.rejectWrapper(new Error(`Request ${requestId} was cancelled`));
         }
         this.activeRequests.delete(requestId); // Remove from active requests

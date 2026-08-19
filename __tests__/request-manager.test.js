@@ -33,15 +33,6 @@ describe('RequestManager', () => {
             expect(requestManager.activeRequests).toBeInstanceOf(Map);
             expect(requestManager.getActiveCount()).toBe(0);
         });
-
-        test('should create instance with verbose option', () => {
-            const verboseManager = new RequestManager({ verbose: true });
-            expect(verboseManager.verbose).toBe(true);
-        });
-
-        test('should create instance without verbose option (default false)', () => {
-            expect(requestManager.verbose).toBe(false);
-        });
     });
 
     describe('request() - with requestId', () => {
@@ -398,7 +389,6 @@ describe('RequestManager', () => {
 
             manager.setOptions({ verbose: true });
             expect(manager.getOptions()).toEqual({ verbose: true });
-            expect(manager.verbose).toBe(true);
         });
     });
 
