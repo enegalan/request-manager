@@ -5,7 +5,7 @@
  * This library allows you to manage HTTP requests from any library (ajax, Ext.Ajax, axios, fetch, etc.)
  * by accepting Promises as parameters. When a request is repeated with the same identifier,
  * the previous request is automatically cancelled and the new one is executed, giving priority to the most recent requests.
-*/
+ */
 class RequestManager {
     constructor(managerOptions = {}) {
         /**
@@ -198,15 +198,7 @@ class RequestManager {
      */
     ajax(ajaxFunction, url, options = {}) {
         if (typeof ajaxFunction !== 'function') throw new Error('ajaxFunction parameter must be a function');
-        try {
-            const abortController = this.#_resolveAbortController(options.abortController);
-            const req = ajaxFunction({ url, ...options });
-            this.addAbortListener(this.#_resolveAbortMethod(req), abortController.signal);
-            // Pass the AbortController to avoid creating another one for this request
-            return this.#_request(this.getRequestId(url, options), req, { ...options, abortController: abortController });
-        } catch (error) {
-            return Promise.reject(error);
-        }
+        return this.#_request(this.getRequestId(url, options), () => ajaxFunction({ url, ...options }), options);
     }
 
     /**
@@ -374,7 +366,11 @@ class RequestManager {
         }
 
         // Reject the wrapper promise
-        this.#_deleteRequest(requestId, requestInfo.rejectWrapper, this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null);
+        this.#_deleteRequest(
+            requestId,
+            requestInfo.rejectWrapper,
+            this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null
+        );
         return true;
     }
 
@@ -501,11 +497,24 @@ class RequestManager {
         // Priority: Function (Custom logic) > String (URL) > Promise (axios, fetch, etc.)
         if (typeof requestPromise === 'function') {
             // Function: custom logic for any library (axios, ajax, etc.)
-            requestPromise = requestPromise({ options: this.#_prepareRequestOptions(options, abortController.signal) });
+            try {
+                requestPromise = requestPromise({
+                    options: this.#_prepareRequestOptions(options, abortController.signal),
+                });
+            } catch (error) {
+                return Promise.reject(error);
+            }
         } else if (typeof requestPromise === 'string') {
             // String (URL): make fetch internally
-            requestPromise = fetch(requestPromise, this.#_prepareRequestOptions(options, abortController.signal));
+            try {
+                requestPromise = fetch(requestPromise, this.#_prepareRequestOptions(options, abortController.signal));
+            } catch (error) {
+                return Promise.reject(error);
+            }
         }
+
+        // Link the request object's abort method (Ext.Ajax, XHR, etc.) to the cancellation signal
+        this.addAbortListener(this.#_resolveAbortMethod(requestPromise), abortController.signal);
 
         // Cancel previous request with the same identifier if it exists
         if (!options.noCancel) this.cancel(requestId);
@@ -535,9 +544,8 @@ class RequestManager {
         if (requestPromise && typeof requestPromise.then === 'function') {
             try {
                 let req = requestPromise.then((result) => {
-                    if (this.activeRequests.get(requestId) === requestInfo) {
-                        this.#_completeRequest(requestId, resolveWrapper, result, requestInfo.isCancelled);
-                    }
+                    if (this.activeRequests.get(requestId) !== requestInfo) return;
+                    this.#_completeRequest(requestId, resolveWrapper, result, requestInfo.isCancelled);
                 });
                 if (req.catch)
                     req.catch((error) => {
@@ -548,8 +556,7 @@ class RequestManager {
             }
             function onError(scope, error) {
                 // Check if this requestInfo is still the active one, or if it was cancelled
-                const currentRequestInfo = scope.activeRequests.get(requestId);
-                if (currentRequestInfo !== requestInfo) return;
+                if (scope.activeRequests.get(requestId) !== requestInfo) return;
                 if (requestInfo.isCancelled) {
                     // Already cancelled: let cancel() handle cleanup and reject the wrapper promise
                     scope.cancel(requestId);

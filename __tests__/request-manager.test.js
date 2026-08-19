@@ -1143,6 +1143,14 @@ describe('RequestManager', () => {
             }).toThrow('ajaxFunction parameter must be a function');
         });
 
+        test('should reject when ajaxFunction throws synchronously', async () => {
+            const ajaxFunction = () => {
+                throw new Error('sync failure');
+            };
+
+            await expect(requestManager.ajax(ajaxFunction, '/api/users')).rejects.toThrow('sync failure');
+        });
+
         test('should execute an ajax request with function', async () => {
             let ajaxCalled = false;
             let ajaxUrl = null;
