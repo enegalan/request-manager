@@ -1183,10 +1183,13 @@ describe('RequestManager', () => {
             await requestManager.ajax(ajaxFunction, '/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                requestKey: 'get-users',
             });
 
             expect(ajaxOptions.method).toBe('POST');
             expect(ajaxOptions.headers).toEqual({ 'Content-Type': 'application/json' });
+            expect(ajaxOptions.signal).toBeInstanceOf(AbortSignal);
+            expect(ajaxOptions.requestKey).toBeUndefined();
         });
 
         test('should cancel previous request with same URL', async () => {

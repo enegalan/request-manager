@@ -7,11 +7,10 @@
 - `ActiveRequest` interface exported in `index.d.ts` describing active request data. ([`3050824`](https://github.com/enegalan/request-manager/commit/3050824bc5a1e5f0a3e01e0d25f9ff91e7e559a9))
 - Request cleanup centralized in new private helpers `#_deleteRequest()` and `#_completeRequest()`. ([`0cf3a90`](https://github.com/enegalan/request-manager/commit/0cf3a90f1c3070e02e1a3e09b6d2e0f7f7d2f530))
 
-
 ### Changed
 
 - `verbose` is kept inside `options` (`getOptions()` / `setOptions()`) instead of a separate `this.verbose` property; the per-request `this.options` state and its `#_setRequestOptions` / `#_flushRequestOptions` helpers were removed. ([`c0cd201`](https://github.com/enegalan/request-manager/commit/c0cd201f2f5d84d4f7f7f5bb47955b9e7bc39a0a), [`24f0829`](https://github.com/enegalan/request-manager/commit/24f0829f47a6e8a82a2e808a7a5f9fcb3b3e59c5))
-- `ajax()` is simplified: the synchronous error handling shim was removed and the ajax function is invoked lazily inside `#_request`, so a synchronous throw rejects the wrapper promise. ([`3261763`](https://github.com/enegalan/request-manager/commit/3261763f2c245c0c6b2b4c8a4f66e5f0d8a1bd1b))
+- `ajax()` is simplified: the synchronous error handling shim was removed and the ajax function is invoked lazily inside `#_request`, so a synchronous throw returns a rejected promise. ([`3261763`](https://github.com/enegalan/request-manager/commit/3261763f2c245c0c6b2b4c8a4f66e5f0d8a1bd1b))
 - `#_prepareFetchOptions()` renamed to `#_prepareRequestOptions()`; `#_generateRequestId()` replaced by the public `getRequestId(url, options)`. ([`0ba06d3`](https://github.com/enegalan/request-manager/commit/0ba06d3173b7e6152f953db9e5f9b1dafd9b1f6a))
 - README rewritten for clarity: key features, usage examples, and guidance for selecting the right method. ([`e1f7a9f`](https://github.com/enegalan/request-manager/commit/e1f7a9f1a0b569f26cbb7b2e0ed51d7b0f06f5ff))
 

@@ -201,7 +201,11 @@ var RequestManager = (function () {
          */
         ajax(ajaxFunction, url, options = {}) {
             if (typeof ajaxFunction !== 'function') throw new Error('ajaxFunction parameter must be a function');
-            return this.#_request(this.getRequestId(url, options), () => ajaxFunction({ url, ...options }), options);
+            return this.#_request(
+                this.getRequestId(url, options),
+                ({ options: requestOptions }) => ajaxFunction({ url, ...requestOptions }),
+                options
+            );
         }
 
         /**
