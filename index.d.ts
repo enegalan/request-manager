@@ -9,7 +9,7 @@
 export type RequestKeyFunction = () => string | number | null | undefined;
 
 /**
- * Request key type - can be a string, number, or a function that returns a dynamic key
+ * Request key type - can be a plain value, or a function that returns a dynamic key
  */
 export type RequestKey = string | number | RequestKeyFunction;
 
@@ -19,61 +19,97 @@ export type RequestKey = string | number | RequestKeyFunction;
 export type CancelToken = (() => void) | { cancel: () => void };
 
 /**
- * Manager options passed to the RequestManager constructor
+ * Active request data interface stored by the RequestManager
  */
-export interface ManagerOptions {
+export interface ActiveRequest<T = any> {
     /**
-     * If true, cancellation rejects the wrapper promise with a message that includes the request id.
-     * If false (default), cancellation is silent: the wrapper promise does not settle and nothing is logged.
+     * The original request: a promise or a request object (XHR, Ext.Ajax, etc.)
+     */
+    promise: any;
+
+    /**
+     * AbortController instance used to abort the request
+     */
+    abortController: AbortController;
+
+    /**
+     * Cancel token (axios compatibility)
+     */
+    cancelToken: CancelToken | null;
+
+    /**
+     * Function to resolve the wrapper promise
+     */
+    resolveWrapper: (value: T | PromiseLike<T>) => void;
+
+    /**
+     * Function to reject the wrapper promise
+     */
+    rejectWrapper: (reason?: any) => void;
+
+    /**
+     * Whether the request has been cancelled
+     */
+    isCancelled: boolean;
+}
+
+/**
+ * RequestManager global options interface
+ */
+export interface Options {
+    /**
+     * If true, cancellation rejects the wrapper promise with a message that includes the request identifier.
+     * If false, cancellation is silent: the wrapper promise does not settle and nothing is logged.
+     * @default false
      */
     verbose?: boolean;
 }
 
 /**
- * Base request options shared by all request methods
+ * Base request options interface shared by all request methods
  */
 export interface BaseRequestOptions {
     /**
-     * Key to identify duplicate requests.
-     * If provided, requests with the same key will cancel previous ones.
-     * Can be a string, number, or function that returns a key.
+     * @type {RequestKey}
      */
     requestKey?: RequestKey;
 
     /**
-     * AbortController instance (created automatically if not provided)
+     * @type {AbortController}
      */
     abortController?: AbortController;
 
     /**
-     * Cancel token (axios compatibility)
+     * @type {CancelToken}
      */
     cancelToken?: CancelToken;
 
     /**
-     * If true, this request will not cancel previous requests with the same ID,
+     * If true, this request will not cancel previous requests with the same identifier,
      * allowing concurrent requests.
+     * @default false
      */
     noCancel?: boolean;
 
     /**
-     * If true, the query string is kept when generating the request ID from the URL.
+     * If true, the query string is kept when generating the request identifier from the URL.
+     * @default false
      */
     includeQuery?: boolean;
 }
 
 /**
- * Options for the request() method
+ * Options interface for the request() method
  */
 export interface RequestOptions extends BaseRequestOptions, Omit<RequestInit, 'signal'> {}
 
 /**
- * Options for the fetch() method
+ * Options interface for the fetch() method
  */
 export interface FetchOptions extends BaseRequestOptions, Omit<RequestInit, 'signal'> {}
 
 /**
- * Options for the axios() method
+ * Options interface for the axios() method
  */
 export interface AxiosRequestOptions extends BaseRequestOptions {
     /**
@@ -123,11 +159,11 @@ export interface AxiosRequestOptions extends BaseRequestOptions {
 }
 
 /**
- * Options for the xhr() method
+ * Options interface for the xhr() method
  */
 export interface XhrOptions extends BaseRequestOptions {
     /**
-     * HTTP method (GET, POST, PUT, DELETE, etc.). Defaults to 'GET'.
+     * HTTP method
      */
     method?: string;
 
@@ -142,7 +178,8 @@ export interface XhrOptions extends BaseRequestOptions {
     body?: string | FormData | Blob | ArrayBuffer | null;
 
     /**
-     * Response type ('text', 'json', 'blob', 'arraybuffer', 'document'). Defaults to 'text'.
+     * Response type
+     * @default 'text'
      */
     responseType?: XMLHttpRequestResponseType;
 
@@ -158,7 +195,7 @@ export interface XhrOptions extends BaseRequestOptions {
 }
 
 /**
- * Response from the xhr() method
+ * Response interface from the xhr() method
  */
 export interface XhrResponse<T = any> {
     /**
@@ -188,7 +225,7 @@ export interface XhrResponse<T = any> {
 }
 
 /**
- * Options passed to the request function callback
+ * Options interface passed to the request function callback
  */
 export interface RequestFunctionOptions {
     /**
@@ -198,7 +235,7 @@ export interface RequestFunctionOptions {
 }
 
 /**
- * A function that receives options and returns a Promise
+ * Function type that receives options and returns a Promise
  */
 export type RequestFunction<T = any> = (params: RequestFunctionOptions) => Promise<T>;
 
@@ -210,7 +247,7 @@ export type AjaxFunction<T = any> = (
 ) => Promise<T> & { abort?: () => void };
 
 /**
- * Axios instance interface (minimal definition for compatibility)
+ * Axios instance interface
  */
 export interface AxiosInstance {
     get<T = any>(url: string, config?: any): Promise<T>;
@@ -233,7 +270,7 @@ export interface AxiosInstance {
 }
 
 /**
- * Axios static interface (for global axios)
+ * Axios static interface
  */
 export interface AxiosStatic extends AxiosInstance {
     create(config?: any): AxiosInstance;
@@ -251,22 +288,12 @@ declare class RequestManager {
     /**
      * Map to store active requests by their unique identifier
      */
-    activeRequests: Map<string, any>;
-
-    /**
-     * Verbose mode: if true, cancellation rejects with a message including the request id
-     */
-    verbose: boolean;
+    activeRequests: Map<string, ActiveRequest>;
 
     /**
      * Manager options that were passed to the constructor
      */
-    managerOptions: ManagerOptions;
-
-    /**
-     * Options for the current request (flushed after each request)
-     */
-    options: Record<string, any>;
+    options: Options;
 
     /**
      * One-shot AbortController handoff from getAbortController()/getSignal().
@@ -276,21 +303,21 @@ declare class RequestManager {
 
     /**
      * Creates a new RequestManager instance
-     * @param managerOptions - Configuration options for the manager
+     * @param options - Configuration options for the manager
      */
-    constructor(managerOptions?: ManagerOptions);
+    constructor(options?: Options);
 
     /**
      * Sets the manager options
      * @param options - The manager options to set
      */
-    setOptions(options: ManagerOptions): void;
+    setOptions(options: Options): void;
 
     /**
      * Gets the manager options
      * @returns The manager options
      */
-    getOptions(): ManagerOptions;
+    getOptions(): Options;
 
     /**
      * Creates a new AbortController and returns its signal for the next request()

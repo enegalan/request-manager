@@ -33,15 +33,6 @@ describe('RequestManager', () => {
             expect(requestManager.activeRequests).toBeInstanceOf(Map);
             expect(requestManager.getActiveCount()).toBe(0);
         });
-
-        test('should create instance with verbose option', () => {
-            const verboseManager = new RequestManager({ verbose: true });
-            expect(verboseManager.verbose).toBe(true);
-        });
-
-        test('should create instance without verbose option (default false)', () => {
-            expect(requestManager.verbose).toBe(false);
-        });
     });
 
     describe('request() - with requestId', () => {
@@ -392,13 +383,12 @@ describe('RequestManager', () => {
             expect(settled).toBe(false);
         });
 
-        test('setOptions should update managerOptions', () => {
+        test('setOptions should update options', () => {
             const manager = new RequestManager();
             expect(manager.getOptions()).toEqual({});
 
             manager.setOptions({ verbose: true });
             expect(manager.getOptions()).toEqual({ verbose: true });
-            expect(manager.verbose).toBe(true);
         });
     });
 
@@ -1153,6 +1143,14 @@ describe('RequestManager', () => {
             }).toThrow('ajaxFunction parameter must be a function');
         });
 
+        test('should reject when ajaxFunction throws synchronously', async () => {
+            const ajaxFunction = () => {
+                throw new Error('sync failure');
+            };
+
+            await expect(requestManager.ajax(ajaxFunction, '/api/users')).rejects.toThrow('sync failure');
+        });
+
         test('should execute an ajax request with function', async () => {
             let ajaxCalled = false;
             let ajaxUrl = null;
@@ -1185,10 +1183,13 @@ describe('RequestManager', () => {
             await requestManager.ajax(ajaxFunction, '/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                requestKey: 'get-users',
             });
 
             expect(ajaxOptions.method).toBe('POST');
             expect(ajaxOptions.headers).toEqual({ 'Content-Type': 'application/json' });
+            expect(ajaxOptions.signal).toBeInstanceOf(AbortSignal);
+            expect(ajaxOptions.requestKey).toBeUndefined();
         });
 
         test('should cancel previous request with same URL', async () => {
