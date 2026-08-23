@@ -1,25 +1,98 @@
+<div align="center">
+
 # @enegalan/request-manager
 
 [![npm version](https://img.shields.io/npm/v/@enegalan/request-manager.svg)](https://www.npmjs.com/package/@enegalan/request-manager)
+[![CI](https://github.com/enegalan/request-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/enegalan/request-manager/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue.svg)](index.d.ts)
+[![Bundle formats](https://img.shields.io/badge/modules-ESM%20%7C%20CJS%20%7C%20UMD-green.svg)](#installation)
 
 RequestManager is a JavaScript library designed to manage and regulate HTTP requests efficiently. It cancels duplicate in-flight calls and works with fetch, axios, jQuery.ajax, Ext.Ajax, raw XHR, and custom clients.
 
+[Getting started](#installation) · [Usage](#usage) · [API Reference](#api-reference)
+
+</div>
+
+---
+
+## Why?
+
+RequestManager **avoids repeated HTTP requests**: when a new call starts with the same identifier (cleaned URL, method, or a custom `requestKey`), the previous one is aborted on the spot. You decide what cancels what — group by URL, key, or query string; or let requests run concurrently with `noCancel`.
+
+```javascript
+requestManager.fetch('/api/search?q=hi'); // aborted when...
+requestManager.fetch('/api/search?q=ho'); // ...this one starts (same cleaned URL)
+requestManager.fetch('/api/feed', { noCancel: true }); // never cancelled
+```
+
 ## Key Features
 
-- **Universal Compatibility**: Dedicated helpers for fetch, axios, ajax-style clients (jQuery / Ext.Ajax), and XMLHttpRequest — plus a low-level `request()` escape hatch
-- **Automatic Cancellation**: When a request is repeated with the same identifier, the previous request is automatically cancelled. The ID comes from the HTTP method + cleaned URL, or from `options.requestKey`
-- **Prioritizes Recent Requests**: Only the most recent request for a given ID is kept; older ones are aborted
-- **Simple API**: Prefer the helper that matches your HTTP client; wire cancel yourself only with `request()`
-- **Adapt to your requirements**: Shared options (`requestKey`, `noCancel`, `includeQuery`, `includeMethod`, ...) across helpers
-- **TypeScript Support**: Full TypeScript type definitions included
-- **Multiple Module Formats**: ESM, CommonJS, and UMD builds available
+|                             |                                                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Universal compatibility** | Dedicated helpers for `fetch`, `axios`, ajax-style clients (jQuery / Ext.Ajax), and `XMLHttpRequest` — plus a low-level `request()` escape hatch |
+| **Real cancellation**       | Duplicates are aborted at the network level (`AbortSignal`, `req.abort()`, `xhr.abort()`) — not silently discarded                               |
+| **Latest request wins**     | Only the most recent request per identifier survives; older ones are aborted automatically                                                       |
+| **Simple API**              | Pick the helper for your client and everything is wired for you. Manual abort plumbing only if you drop to `request()`                           |
+| **Configurable grouping**   | Shared options across helpers: `requestKey`, `noCancel`, `includeQuery`, `includeMethod`                                                         |
+| **TypeScript support**      | Full type definitions included and resolved automatically                                                                                        |
+| **Every module format**     | ESM, CommonJS, UMD, and minified CDN bundles                                                                                                     |
+
+## Table of Contents
+
+- [@enegalan/request-manager](#enegalanrequest-manager)
+  - [Why?](#why)
+  - [Key Features](#key-features)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Usage](#usage)
+    - [Usage in Different Environments](#usage-in-different-environments)
+    - [TypeScript](#typescript)
+    - [Which method should I use?](#which-method-should-i-use)
+    - [Basic Example with fetch()](#basic-example-with-fetch)
+    - [POST Request with Options](#post-request-with-options)
+    - [Using request()](#using-request)
+    - [Automatic Cancellation with Same URL](#automatic-cancellation-with-same-url)
+    - [Using requestKey to Override URL-based ID](#using-requestkey-to-override-url-based-id)
+    - [Using requestKey with Function](#using-requestkey-with-function)
+    - [Using noCancel to Allow Concurrent Requests](#using-nocancel-to-allow-concurrent-requests)
+    - [Using includeQuery to Distinguish Query Strings](#using-includequery-to-distinguish-query-strings)
+    - [Using with Axios](#using-with-axios)
+    - [Using with jQuery / Ext.Ajax (`ajax()`)](#using-with-jquery--extajax-ajax)
+    - [Using with Other Libraries](#using-with-other-libraries)
+  - [API Reference](#api-reference)
+    - [`new RequestManager(options)`](#new-requestmanageroptions)
+    - [`request(url, requestPromise, options)`](#requesturl-requestpromise-options)
+    - [`fetch(url, options)`](#fetchurl-options)
+    - [`axios(url, options, axiosInstance)`](#axiosurl-options-axiosinstance)
+    - [`ajax(ajaxFunction, url, options)`](#ajaxajaxfunction-url-options)
+    - [`xhr(url, options)`](#xhrurl-options)
+    - [`getRequestId(url, options)`](#getrequestidurl-options)
+    - [`cancel(requestId)`](#cancelrequestid)
+    - [`cancelAll()`](#cancelall)
+    - [`isActive(requestId)`](#isactiverequestid)
+    - [`getActiveCount()`](#getactivecount)
+    - [`clear()`](#clear)
+    - [`getSignal()`](#getsignal)
+    - [`getAbortController()`](#getabortcontroller)
+    - [`getOptions()`](#getoptions)
+    - [`setOptions(options)`](#setoptionsoptions)
+    - [`addAbortListener(abortMethod, signal)`](#addabortlistenerabortmethod-signal)
+  - [Browser Support](#browser-support)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Installation
 
 ```bash
 npm install @enegalan/request-manager
+# or
+yarn add @enegalan/request-manager
+# or
+pnpm add @enegalan/request-manager
 ```
+
+## Usage
 
 ### Usage in Different Environments
 
@@ -62,8 +135,6 @@ const response: Response = await requestManager.fetch('/api/users');
 const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/user/1');
 ```
 
-## Usage
-
 ### Which method should I use?
 
 Pick the **dedicated helper** for your HTTP client. Use `request()` only when none of the helpers fit.
@@ -90,7 +161,7 @@ requestManager.ajax(({ url, ...opts }) => $.ajax({ url, ...opts }), '/api/users'
 requestManager.ajax(({ url, ...opts }) => Ext.Ajax.request({ url, ...opts }), '/api/users');
 requestManager.xhr('/api/users');
 
-// Escape hatch — you wire cancel yourself (see sandbox / API notes below)
+// Escape hatch — you wire cancel yourself (see API notes below)
 requestManager.request('/api/users', ({ options }) => fetch('/api/users', { signal: options.signal, ...options }));
 ```
 
@@ -327,7 +398,7 @@ requestManager.request('/api/users', ({ options }) => {
 
 ### Using with Other Libraries
 
-If there is no dedicated helper, use `request()` and **must** abort on `options.signal` (or pass `cancelToken` / `addAbortListener`).
+If there is no dedicated helper, use `request()` and make sure you wire abort yourself via `options.signal` (or pass `cancelToken` / `addAbortListener`).
 
 ```javascript
 import RequestManager from '@enegalan/request-manager';
@@ -700,3 +771,34 @@ const req = $.ajax({ url });
 requestManager.addAbortListener(req.abort, abortController.signal);
 requestManager.request(url, req, { abortController: abortController });
 ```
+
+## Browser Support
+
+Bundles are transpiled with Babel (`@babel/preset-env`), so modern syntax does not leak into `dist/`.
+
+| Environment          | Supported                     |
+| -------------------- | ----------------------------- |
+| Chrome / Edge        | Last 2 versions               |
+| Firefox              | Last 2 versions + ESR         |
+| Safari               | ≥ 10                          |
+| Node.js              | ≥ 14                          |
+| Module formats       | ESM · CommonJS · UMD · IIFE   |
+
+## Contributing
+
+Issues and pull requests are welcome at [github.com/enegalan/request-manager](https://github.com/enegalan/request-manager).
+
+```bash
+git clone https://github.com/enegalan/request-manager.git
+cd request-manager
+npm install
+
+npm test           # run the test suite
+npm run test:watch # run tests on file changes
+npm run lint       # check code style
+npm run build      # generate dist/ bundles
+```
+
+## License
+
+[MIT](LICENSE) © [Eneko Galan](https://github.com/enegalan)
