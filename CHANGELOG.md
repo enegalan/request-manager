@@ -1,3 +1,15 @@
+## [1.1.0] - 2026-08-23
+
+### Added
+
+- `includeMethod` option (default `true`): the HTTP method is part of the URL-based request ID, so `GET /api/users` and `POST /api/users` never cancel each other. Set `includeMethod: false` to restore URL-only grouping. jQuery-style `type` option is also honored.
+- axios now requires **>= 0.22.0**: cancellation is wired through an `AbortSignal` only, and a console warning is emitted when an older instance is detected.
+- Transpiled builds: Rollup now runs `@babel/preset-env` (targets `> 0.5%, last 2 versions, Firefox ESR, not dead, Safari >= 10`), removing private class members and optional chaining from `dist/`.
+
+### Fixed
+
+- `xhr()` hung forever with `responseType: 'json'`: reading `xhr.responseText` throws `InvalidStateError` for non-text response types; the manager now uses the browser-parsed `xhr.response` instead of re-parsing, and only parses manually when the response is a string.
+
 ## [1.0.10] - 2026-08-20
 
 ### Added

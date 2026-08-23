@@ -97,6 +97,13 @@ export interface BaseRequestOptions {
      * @default false
      */
     includeQuery?: boolean;
+
+    /**
+     * If true (default), the HTTP method is part of the generated request identifier,
+     * so identical URLs with different methods never cancel each other.
+     * @default true
+     */
+    includeMethod?: boolean;
 }
 
 /**
@@ -139,11 +146,6 @@ export interface AxiosRequestOptions extends BaseRequestOptions {
     baseURL?: string;
 
     /**
-     * Request timeout in milliseconds
-     */
-    timeout?: number;
-
-    /**
      * Whether to send credentials with the request
      */
     withCredentials?: boolean;
@@ -152,6 +154,11 @@ export interface AxiosRequestOptions extends BaseRequestOptions {
      * Response type
      */
     responseType?: 'arraybuffer' | 'blob' | 'document' | 'json' | 'text' | 'stream';
+
+    /**
+     * Native axios request timeout in milliseconds
+     */
+    timeout?: number;
 
     /**
      * Additional axios options
@@ -190,7 +197,7 @@ export interface XhrOptions extends BaseRequestOptions {
     withCredentials?: boolean;
 
     /**
-     * Request timeout in milliseconds
+     * Native XMLHttpRequest timeout in milliseconds
      */
     timeout?: number;
 }
@@ -463,7 +470,10 @@ declare class RequestManager {
      * @param options - Same options used for the request
      * @returns The request identifier
      */
-    getRequestId(url: string, options?: Pick<BaseRequestOptions, 'requestKey' | 'includeQuery' | 'noCancel'>): string;
+    getRequestId(
+        url: string,
+        options?: Pick<BaseRequestOptions, 'requestKey' | 'includeQuery' | 'includeMethod' | 'noCancel'>
+    ): string;
 
     /**
      * Cancels a specific request by its identifier.

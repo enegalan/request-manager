@@ -1,7 +1,7 @@
 import RequestManager from '../main.js';
 
 // Helper function to generate request ID (replicates private #_generateRequestId logic)
-function generateRequestId(url, requestKey = null, includeQuery = false) {
+function generateRequestId(url, requestKey = null, includeQuery = false, includeMethod = true, method = 'GET') {
     if (requestKey !== null && requestKey !== undefined) {
         if (typeof requestKey === 'function') {
             try {
@@ -17,7 +17,8 @@ function generateRequestId(url, requestKey = null, includeQuery = false) {
     if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
     if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
     if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
-    return `request_${cleanedUrl}`;
+    const methodPrefix = includeMethod ? `${(method || 'GET').toUpperCase()}_` : '';
+    return `request_${methodPrefix}${cleanedUrl}`;
 }
 
 describe('RequestManager', () => {
@@ -443,6 +444,32 @@ describe('RequestManager', () => {
             expect(requestManager.getRequestId('/api/a?q=1', { requestKey: 'k' })).toBe('request_k');
             expect(requestManager.getRequestId('/api/a?q=1', { includeQuery: true })).toBe(
                 generateRequestId('/api/a?q=1', null, true)
+            );
+        });
+
+        test('should include the HTTP method by default', () => {
+            expect(requestManager.getRequestId('/api/users')).toBe('request_GET_/api/users');
+            expect(requestManager.getRequestId('/api/users', { method: 'POST' })).toBe('request_POST_/api/users');
+            expect(requestManager.getRequestId('/api/users', { method: 'delete' })).toBe('request_DELETE_/api/users');
+        });
+
+        test('should normalize method casing', () => {
+            expect(requestManager.getRequestId('/api/users', { method: 'get' })).toBe(
+                requestManager.getRequestId('/api/users')
+            );
+            expect(requestManager.getRequestId('/api/users', { method: 'Get' })).toBe(
+                requestManager.getRequestId('/api/users')
+            );
+        });
+
+        test('should support jQuery-style type option for the method part', () => {
+            expect(requestManager.getRequestId('/api/users', { type: 'post' })).toBe('request_POST_/api/users');
+        });
+
+        test('should not include the method when includeMethod is false', () => {
+            expect(requestManager.getRequestId('/api/users', { includeMethod: false })).toBe('request_/api/users');
+            expect(requestManager.getRequestId('/api/users', { includeMethod: false, method: 'POST' })).toBe(
+                'request_/api/users'
             );
         });
 
@@ -1144,6 +1171,62 @@ describe('RequestManager', () => {
 
             expect(axiosCalled).toBe(true);
             expect(result.data).toBe('success');
+        });
+
+        test('should only pass signal (no cancelToken), even if the instance exposes CancelToken', async () => {
+            let seenConfig = null;
+            const legacyAxios = Object.assign(
+                (config) => {
+                    seenConfig = config;
+                    return Promise.resolve({ data: 'ok', status: 200 });
+                },
+                {
+                    CancelToken: {
+                        source: () => ({ token: { mock: 'token' }, cancel: () => {} }),
+                    },
+                }
+            );
+
+            await requestManager.axios('/api/legacy', {}, legacyAxios);
+
+            expect(seenConfig.signal).toBeInstanceOf(AbortSignal);
+            expect(seenConfig.cancelToken).toBeUndefined();
+        });
+
+        test('should warn when the axios version predates signal support (< 0.22)', async () => {
+            const originalWarn = console.warn;
+            const warnings = [];
+            console.warn = (...args) => warnings.push(args.join(' '));
+            try {
+                const oldAxios = Object.assign(() => Promise.resolve({ data: 'ok', status: 200 }), {
+                    VERSION: '0.21.4',
+                });
+
+                await requestManager.axios('/api/outdated', {}, oldAxios);
+
+                expect(warnings.some((w) => w.includes('axios >= 0.22.0'))).toBe(true);
+            } finally {
+                console.warn = originalWarn;
+            }
+        });
+
+        test('should not warn for modern or unknown axios versions', async () => {
+            const originalWarn = console.warn;
+            const warnings = [];
+            console.warn = (...args) => warnings.push(args.join(' '));
+            try {
+                const modernAxios = Object.assign(() => Promise.resolve({ data: 'ok', status: 200 }), {
+                    VERSION: '1.6.7',
+                });
+                const unknownAxios = () => Promise.resolve({ data: 'ok', status: 200 });
+
+                await requestManager.axios('/api/modern', {}, modernAxios);
+                await requestManager.axios('/api/unknown', {}, unknownAxios);
+
+                expect(warnings.length).toBe(0);
+            } finally {
+                console.warn = originalWarn;
+            }
         });
     });
 

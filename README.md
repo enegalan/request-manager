@@ -8,10 +8,10 @@ RequestManager is a JavaScript library designed to manage and regulate HTTP requ
 ## Key Features
 
 - **Universal Compatibility**: Dedicated helpers for fetch, axios, ajax-style clients (jQuery / Ext.Ajax), and XMLHttpRequest — plus a low-level `request()` escape hatch
-- **Automatic Cancellation**: When a request is repeated with the same identifier, the previous request is automatically cancelled. The ID comes from the cleaned URL, or from `options.requestKey`
+- **Automatic Cancellation**: When a request is repeated with the same identifier, the previous request is automatically cancelled. The ID comes from the HTTP method + cleaned URL, or from `options.requestKey`
 - **Prioritizes Recent Requests**: Only the most recent request for a given ID is kept; older ones are aborted
 - **Simple API**: Prefer the helper that matches your HTTP client; wire cancel yourself only with `request()`
-- **Adapt to your requirements**: Shared options (`requestKey`, `noCancel`, `includeQuery`, ...) across helpers
+- **Adapt to your requirements**: Shared options (`requestKey`, `noCancel`, `includeQuery`, `includeMethod`, ...) across helpers
 - **TypeScript Support**: Full TypeScript type definitions included
 - **Multiple Module Formats**: ESM, CommonJS, and UMD builds available
 
@@ -165,8 +165,9 @@ import RequestManager from '@enegalan/request-manager';
 
 const requestManager = new RequestManager();
 
-// By default, requests with the same URL (cleaned) will cancel previous ones
-// The URL is automatically cleaned (protocol and query params removed) to generate the request ID
+// By default, requests with the same method + URL (cleaned) will cancel previous ones
+// The URL is automatically cleaned (protocol and query params removed) and the HTTP
+// method is prepended to generate the request ID (e.g. request_GET_/api/search)
 requestManager.fetch('/api/search?q=test').catch((error) => {
     console.log('First request cancelled:', error.message);
 });
@@ -384,13 +385,14 @@ Low-level entry point. Tracks the call by ID and cancels the previous one with t
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will share the same ID and cancel previous ones. If not provided, the cleaned URL is used as the key. Can be a string, number, or function that returns a key.
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests. Useful for lazy loading scenarios where multiple requests should execute in parallel.
     - `includeQuery` (boolean): If true, keeps the query string when generating the request ID from the URL.
+    - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
 
 > [!TIP]
 > When `requestPromise` is a Function, you can pass custom properties in `options`. These will be accessible inside the callback via the `{ options }` parameter.
 
 **Returns:** Promise that resolves/rejects based on the most recent request
 
-**Note:** The request ID is automatically generated from the cleaned URL (protocol and hash removed; query params removed unless `includeQuery` is true) unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request to prevent cancellation. When `requestPromise` is a Function, it receives `{ options }` where `options` contains the `signal` (AbortSignal) and any other fetch options.
+**Note:** The request ID is automatically generated from the cleaned URL (protocol and hash removed; query params removed unless `includeQuery` is true; HTTP method included unless `includeMethod` is false) unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request to prevent cancellation. When `requestPromise` is a Function, it receives `{ options }` where `options` contains the `signal` (AbortSignal) and any other fetch options.
 
 ### `fetch(url, options)`
 
@@ -405,6 +407,8 @@ Executes an HTTP request using fetch, cancelling any previous request with the s
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
+    - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
+
     - Any other properties are passed as fetch options (method, headers, body, etc.)
 
 **Returns:** Promise that resolves/rejects based on the most recent request
@@ -422,12 +426,14 @@ Executes an HTTP request using axios, cancelling any previous request with the s
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
+    - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
+
     - Any other properties are passed as axios options (method, headers, params, data, etc.)
 - `axiosInstance` (Object, optional): Custom axios instance to use. If not provided, uses the global `axios` object.
 
 **Returns:** Promise that resolves/rejects based on the most recent request
 
-**Note:** This method automatically creates an AbortController and passes its `signal` in the axios config, so cancellation requires axios ≥ 0.22. The request ID is automatically generated from the cleaned URL unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request.
+**Note:** This method automatically creates an AbortController and passes its `signal` in the axios config, so **cancellation requires axios >= 0.22.0** (the first version supporting `AbortSignal`). Older versions silently ignore the signal; a console warning is emitted when one is detected. The request ID is automatically generated from the cleaned URL unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request.
 
 **Example:**
 
@@ -482,6 +488,8 @@ Calls `ajaxFunction({ url, ...options })`, then auto-wires cancel by inspecting 
     - `verbose` (boolean): If true, cancellation rejects with a message that includes the request id
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
+    - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
+
     - Any other properties are passed to the ajax method function
 
 **Returns:** Promise that resolves/rejects based on the most recent request
@@ -522,6 +530,7 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
     - `verbose` (boolean): If true, cancellation rejects with a message that includes the request id
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
+    - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
 
 **Returns:** Promise that resolves/rejects based on the most recent request. The resolved value is an object with:
 
@@ -565,6 +574,7 @@ Returns the request ID that RequestManager assigns for a URL and options.
 - `options` (Object, optional): Same options used for the request
     - `requestKey` (string|number|Function, optional): Key override
     - `includeQuery` (boolean, optional): Keep query string in the URL-based ID
+    - `includeMethod` (boolean, optional): If false, the HTTP method is not part of the URL-based ID (default true)
     - `noCancel` (boolean, optional): If true, returns a **new** unique ID (will not match an already in-flight `noCancel` request)
 
 **Returns:** `string` — the request identifier

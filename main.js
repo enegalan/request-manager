@@ -164,6 +164,7 @@ class RequestManager {
      */
     axios(url, options = {}, axiosInstance = null) {
         const axiosLib = axiosInstance || axios;
+        this.#_checkAxiosVersion(axiosLib);
         return this.#_request(
             this.getRequestId(url, options),
             ({ options: requestOptions }) => axiosLib({ url, ...requestOptions }),
@@ -335,7 +336,11 @@ class RequestManager {
         if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
         if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
         if (!options.includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
-        return `${prefix}${cleanedUrl}`;
+
+        const methodPrefix =
+            options.includeMethod === false ? '' : `${(options.method || options.type || 'GET').toUpperCase()}_`;
+
+        return `${prefix}${methodPrefix}${cleanedUrl}`;
     }
 
     /**
@@ -451,6 +456,24 @@ class RequestManager {
         });
         requestOptions.signal = signal;
         return requestOptions;
+    }
+
+    /**
+     * Warns when the provided axios instance predates 0.22.0, the first version
+     * supporting AbortSignal cancellation. Older instances silently ignore
+     * options.signal, so duplicate requests would not be cancelled.
+     * @param {object} axiosLib - The axios instance about to be used
+     * @private
+     */
+    #_checkAxiosVersion(axiosLib) {
+        const version = typeof axiosLib?.VERSION === 'string' ? axiosLib.VERSION : null;
+        if (!version) return;
+        const [major, minor] = version.split('.').map(Number);
+        if (major === 0 && minor < 22) {
+            console.warn(
+                `[request-manager] axios >= 0.22.0 is required: axios ${version} ignores the AbortSignal used for automatic cancellation. Please upgrade axios.`
+            );
+        }
     }
 
     /**
