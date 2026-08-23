@@ -14,7 +14,7 @@ export type RequestKeyFunction = () => string | number | null | undefined;
 export type RequestKey = string | number | RequestKeyFunction;
 
 /**
- * Cancel token type (axios compatibility) - can be a function or an object with a cancel method
+ * Cancel token type - can be a function or an object with a cancel method
  */
 export type CancelToken = (() => void) | { cancel: () => void };
 
@@ -33,7 +33,7 @@ export interface ActiveRequest<T = any> {
     abortController: AbortController;
 
     /**
-     * Cancel token (axios compatibility)
+     * Cancel token for custom HTTP clients that only support manual cancellation
      */
     cancelToken: CancelToken | null;
 
@@ -80,6 +80,7 @@ export interface BaseRequestOptions {
     abortController?: AbortController;
 
     /**
+     * Cancel token for custom HTTP clients that only support manual cancellation
      * @type {CancelToken}
      */
     cancelToken?: CancelToken;
@@ -261,12 +262,6 @@ export interface AxiosInstance {
     postForm<T = any>(url: string, data?: any, config?: any): Promise<T>;
     putForm<T = any>(url: string, data?: any, config?: any): Promise<T>;
     patchForm<T = any>(url: string, data?: any, config?: any): Promise<T>;
-    CancelToken: {
-        source(): {
-            token: any;
-            cancel: (message?: string) => void;
-        };
-    };
 }
 
 /**

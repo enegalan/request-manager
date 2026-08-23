@@ -1003,15 +1003,6 @@ describe('RequestManager', () => {
             };
             const axiosMock = (config) => axiosImpl(config);
             global.axios = Object.assign(axiosMock, {
-                CancelToken: {
-                    source: () => {
-                        const cancelFn = () => {};
-                        return {
-                            token: 'mock-token',
-                            cancel: cancelFn,
-                        };
-                    },
-                },
                 isCancel: (error) => error && error.__CANCEL__ === true,
             });
         });
@@ -1025,7 +1016,7 @@ describe('RequestManager', () => {
 
             expect(axiosCalled).toBe(true);
             expect(axiosArgs.url).toBe('/api/users');
-            expect(axiosArgs.cancelToken).toBe('mock-token');
+            expect(axiosArgs.signal).toBeInstanceOf(AbortSignal);
             expect(result.data).toBe('success');
             expect(result.status).toBe(200);
         });
@@ -1040,7 +1031,7 @@ describe('RequestManager', () => {
 
             expect(axiosCalled).toBe(true);
             expect(axiosArgs.url).toBe('/api/users');
-            expect(axiosArgs.cancelToken).toBe('mock-token');
+            expect(axiosArgs.signal).toBeInstanceOf(AbortSignal);
             expect(axiosArgs.headers).toEqual({ 'Content-Type': 'application/json' });
             expect(axiosArgs.params).toEqual({ page: 1 });
         });
@@ -1055,7 +1046,36 @@ describe('RequestManager', () => {
             expect(axiosArgs.url).toBe('/api/users');
             expect(axiosArgs.method).toBe('POST');
             expect(axiosArgs.data).toEqual({ name: 'John' });
-            expect(axiosArgs.cancelToken).toBe('mock-token');
+            expect(axiosArgs.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        test('should abort the previous request signal when a duplicate starts', async () => {
+            const capturedSignals = [];
+            axiosImpl = (config) => {
+                capturedSignals.push(config.signal);
+                return new Promise(() => {}); // Never resolves
+            };
+
+            const request1 = requestManager.axios('/api/users');
+            request1.catch(() => {}); // Handle cancellation
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+
+            expect(capturedSignals[0]).toBeInstanceOf(AbortSignal);
+            expect(capturedSignals[0].aborted).toBe(false);
+
+            axiosImpl = () => Promise.resolve({ data: 'second', status: 200 });
+
+            const result = await requestManager.axios('/api/users');
+
+            expect(capturedSignals[0].aborted).toBe(true);
+            expect(result.data).toBe('second');
+        });
+
+        test('should not leak requests map entries after completion', async () => {
+            await requestManager.axios('/api/users');
+
+            expect(requestManager.getActiveCount()).toBe(0);
         });
 
         test('should cancel previous request with same URL', async () => {
@@ -1101,23 +1121,14 @@ describe('RequestManager', () => {
                 customAxiosArgs = config;
                 return Promise.resolve({ data: 'custom-success', status: 200 });
             };
-            const customAxiosInstance = Object.assign(customAxiosImpl, {
-                CancelToken: {
-                    source: () => {
-                        return {
-                            token: 'custom-token',
-                            cancel: () => {},
-                        };
-                    },
-                },
-            });
+            const customAxiosInstance = Object.assign(customAxiosImpl, {});
 
             const result = await requestManager.axios('/api/users', {}, customAxiosInstance);
 
             expect(customAxiosCalled).toBe(true);
             expect(axiosCalled).toBe(false); // Global axios should not be called
             expect(customAxiosArgs.url).toBe('/api/users');
-            expect(customAxiosArgs.cancelToken).toBe('custom-token');
+            expect(customAxiosArgs.signal).toBeInstanceOf(AbortSignal);
             expect(result.data).toBe('custom-success');
         });
 
@@ -1620,6 +1631,74 @@ describe('RequestManager', () => {
 
             expect(responseTypeSet).toBe('arraybuffer');
             expect(result.data).toBe('binary-data');
+        });
+
+        test('should resolve with parsed response when responseType is json without touching responseText', async () => {
+            const xhrMock = {
+                open: () => {},
+                send: () => {},
+                setRequestHeader: () => {},
+                getAllResponseHeaders: () => '',
+                getResponseHeader: () => 'application/json',
+                get responseText() {
+                    // Browsers throw InvalidStateError when reading responseText
+                    // while responseType is not '' or 'text'
+                    throw new Error('InvalidStateError');
+                },
+                response: { data: 'parsed-by-browser' },
+                status: 200,
+                statusText: 'OK',
+                onload: null,
+                onerror: null,
+                ontimeout: null,
+            };
+
+            global.XMLHttpRequest = function () {
+                return xhrMock;
+            };
+
+            const resultPromise = requestManager.xhr('/api/users', {
+                responseType: 'json',
+            });
+
+            setTimeout(() => {
+                xhrMock.onload();
+            }, 10);
+
+            const result = await resultPromise;
+
+            expect(result.data).toEqual({ data: 'parsed-by-browser' });
+        });
+
+        test('should fall back to raw text when JSON parsing fails', async () => {
+            const xhrMock = {
+                open: () => {},
+                send: () => {},
+                setRequestHeader: () => {},
+                getAllResponseHeaders: () => '',
+                getResponseHeader: () => 'application/json',
+                responseText: '{invalid-json}',
+                response: '{invalid-json}',
+                status: 200,
+                statusText: 'OK',
+                onload: null,
+                onerror: null,
+                ontimeout: null,
+            };
+
+            global.XMLHttpRequest = function () {
+                return xhrMock;
+            };
+
+            const resultPromise = requestManager.xhr('/api/users');
+
+            setTimeout(() => {
+                xhrMock.onload();
+            }, 10);
+
+            const result = await resultPromise;
+
+            expect(result.data).toBe('{invalid-json}');
         });
     });
 

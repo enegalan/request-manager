@@ -71,7 +71,7 @@ Pick the **dedicated helper** for your HTTP client. Use `request()` only when no
 | Client                            | Use this                                  | Why                                                                                                    |
 | --------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | `fetch`                           | **`fetch(url, options)`**                 | Creates the AbortSignal and passes it to `fetch` for you                                               |
-| `axios`                           | **`axios(url, options, axiosInstance?)`** | Creates axios `CancelToken` and wires cancel for you                                                   |
+| `axios`                           | **`axios(url, options, axiosInstance?)`** | Creates an `AbortSignal` and wires cancel for you (axios ≥ 0.22)                                       |
 | jQuery `.ajax`, Ext.Ajax, similar | **`ajax(ajaxFunction, url, options)`**    | Runs your ajax function, then wires abort for you (`req.abort`, `Ext.Ajax.abort(req)`, or `xhr.abort`) |
 | Raw `XMLHttpRequest`              | **`xhr(url, options)`**                   | Owns open/send and abort lifecycle                                                                     |
 | Custom / already-started Promise  | **`request(url, promiseOrFn, options)`**  | Escape hatch — **you** must pass `signal` / `cancelToken` / `addAbortListener`                         |
@@ -427,7 +427,7 @@ Executes an HTTP request using axios, cancelling any previous request with the s
 
 **Returns:** Promise that resolves/rejects based on the most recent request
 
-**Note:** This method automatically creates a CancelToken for axios cancellation. The request ID is automatically generated from the cleaned URL unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request.
+**Note:** This method automatically creates an AbortController and passes its `signal` in the axios config, so cancellation requires axios ≥ 0.22. The request ID is automatically generated from the cleaned URL unless `requestKey` is specified. When `noCancel` is true, a unique ID is generated for each request.
 
 **Example:**
 

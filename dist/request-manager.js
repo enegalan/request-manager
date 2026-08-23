@@ -12,7 +12,6 @@ var RequestManager = (function () {
     class RequestManager {
         constructor(options = {}) {
             /**
-             * Map to store active requests by their unique identifier.
              * @type {Map<string, import('./index.d.ts').ActiveRequest>}
              */
             this.activeRequests = new Map();
@@ -100,15 +99,14 @@ var RequestManager = (function () {
          * @returns {Promise} A Promise that resolves/rejects based on the most recent request
          * @example
          * // Request with Promise
-         * requestManager.request('/api/users', axios.get('/api/users', { cancelToken: axios.CancelToken.source().token }));
+         * requestManager.request('/api/users', axios.get('/api/users'));
          * @example
          * // Request with Function
          * requestManager.request('/api/users', ({ options }) => fetch('/api/users', { signal: options.signal, ...options }));
          * @example
          * // Request with Promise and custom cancellation grouping with requestKey
          * const options = {
-         *   requestKey: 'get-users',
-         *   cancelToken: axios.CancelToken.source().cancel
+         *   requestKey: 'get-users'
          * }
          * requestManager.request('/api/users', axios.get('/api/users', options), options);
          */
@@ -169,12 +167,11 @@ var RequestManager = (function () {
          */
         axios(url, options = {}, axiosInstance = null) {
             const axiosLib = axiosInstance || axios;
-            const cancelToken = axiosLib.CancelToken.source();
-            const requestId = this.getRequestId(url, options);
-            return this.#_request(requestId, axiosLib({ url, cancelToken: cancelToken.token, ...options }), {
-                cancelToken: cancelToken,
-                ...options,
-            });
+            return this.#_request(
+                this.getRequestId(url, options),
+                ({ options: requestOptions }) => axiosLib({ url, ...requestOptions }),
+                options
+            );
         }
 
         /**
@@ -243,14 +240,13 @@ var RequestManager = (function () {
                             let response = xhr.response;
                             if (
                                 options.responseType === 'json' ||
-                                (xhr.getResponseHeader('Content-Type') &&
-                                    xhr.getResponseHeader('Content-Type').includes('application/json'))
+                                ((!options.responseType || options.responseType === 'text') &&
+                                    xhr.getResponseHeader('Content-Type')?.includes('application/json') &&
+                                    typeof response === 'string')
                             ) {
                                 try {
-                                    response = JSON.parse(xhr.responseText);
-                                } catch {
-                                    response = xhr.responseText;
-                                }
+                                    response = JSON.parse(response);
+                                } catch {}
                             }
                             resolve({
                                 data: response,
