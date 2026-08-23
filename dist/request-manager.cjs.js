@@ -13,6 +13,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 class RequestManager {
     constructor(options = {}) {
         /**
+         * Map to store active requests by their unique identifier.
          * @type {Map<string, import('./index.d.ts').ActiveRequest>}
          */
         this.activeRequests = new Map();
@@ -597,4 +598,4 @@ class RequestManager {
 
 exports.RequestManager = RequestManager;
 exports.default = RequestManager;
-//# sourceMappingURL=requestmanager.cjs.js.map
+//# sourceMappingURL=request-manager.cjs.js.map
