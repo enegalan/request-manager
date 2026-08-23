@@ -46,7 +46,7 @@ export default [
     {
         input: 'main.js',
         output: {
-            file: 'dist/request-manager.cjs.js',
+            file: 'dist/request-manager.cjs',
             format: 'cjs',
             banner,
             sourcemap: true,
@@ -58,7 +58,7 @@ export default [
     {
         input: 'main.js',
         output: {
-            file: 'dist/request-manager.cjs.min.js',
+            file: 'dist/request-manager.min.cjs',
             format: 'cjs',
             banner,
             sourcemap: true,

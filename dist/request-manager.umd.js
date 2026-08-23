@@ -282,7 +282,10 @@
     axios(url) {
       var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
       var axiosInstance = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
-      var axiosLib = axiosInstance || axios;
+      var axiosLib = axiosInstance || (typeof axios !== 'undefined' ? axios : null);
+      if (!axiosLib) {
+        throw new Error('axios was not found: pass an axios instance as the third argument of requestManager.axios() or make sure axios is available globally');
+      }
       _assertClassBrand(_RequestManager_brand, this, _checkAxiosVersion).call(this, axiosLib);
       return _assertClassBrand(_RequestManager_brand, this, _request).call(this, this.getRequestId(url, options), _ref => {
         var requestOptions = _ref.options;
@@ -348,7 +351,6 @@
      */
     xhr(url) {
       var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-      var requestId = this.getRequestId(url, options);
       /** @type {import('./index.d.ts').RequestFunction<import('./index.d.ts').XhrResponse>} */
       var xhrFunction = _ref3 => {
         var fetchOptions = _ref3.options;
@@ -358,6 +360,7 @@
         // Create a promise that wraps the XHR request
         var xhrPromise = new Promise((resolve, reject) => {
           xhr.onload = function () {
+            detachAbortListener();
             if (xhr.status >= 200 && xhr.status < 300) {
               var _xhr$getResponseHeade;
               var response = xhr.response;
@@ -383,12 +386,14 @@
             }
           };
           xhr.onerror = function () {
+            detachAbortListener();
             reject({
               message: 'Network error',
               xhr: xhr
             });
           };
           xhr.ontimeout = function () {
+            detachAbortListener();
             reject({
               message: 'Request timeout',
               xhr: xhr
@@ -410,14 +415,25 @@
           });
 
           // Connect abort signal to xhr.abort()
-          if (fetchOptions.signal) fetchOptions.signal.addEventListener('abort', () => xhr.abort());
+          var abortListener = () => xhr.abort();
+          if (fetchOptions.signal) fetchOptions.signal.addEventListener('abort', abortListener);
+          // Detach the listener once the request settles so completed requests do not keep it alive
+          var detachAbortListener = () => {
+            if (fetchOptions.signal) fetchOptions.signal.removeEventListener('abort', abortListener);
+          };
+          xhr.onabort = function () {
+            reject({
+              message: 'Request was cancelled',
+              xhr: xhr
+            });
+          };
 
           // Send the request
           xhr.send(options.body || null);
         });
         return xhrPromise;
       };
-      return _assertClassBrand(_RequestManager_brand, this, _request).call(this, requestId, xhrFunction, options);
+      return _assertClassBrand(_RequestManager_brand, this, _request).call(this, this.getRequestId(url, options), xhrFunction, options);
     }
 
     /**
@@ -549,7 +565,7 @@
    */
   function _prepareRequestOptions(options, signal) {
     var requestOptions = {};
-    var customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery'];
+    var customOptions = ['abortController', 'cancelToken', 'requestKey', 'noCancel', 'includeQuery', 'includeMethod', 'verbose'];
     Object.keys(options).forEach(key => {
       if (customOptions.includes(key)) return;
       requestOptions[key] = options[key];

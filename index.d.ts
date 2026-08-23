@@ -248,11 +248,18 @@ export interface RequestFunctionOptions {
 export type RequestFunction<T = any> = (params: RequestFunctionOptions) => Promise<T>;
 
 /**
+ * Result returned by an ajax function: either a Promise (e.g. jQuery jqXHR)
+ * or a request object (e.g. Ext.Ajax.request result) exposing `abort` and/or `xhr`.
+ */
+export type AjaxResult<T = any> =
+    (Promise<T> & { abort?: () => void }) | ({ abort?: () => void; xhr?: XMLHttpRequest } & Record<string, any>);
+
+/**
  * Ajax function type
  */
 export type AjaxFunction<T = any> = (
     params: { url: string; signal?: AbortSignal } & Record<string, any>
-) => Promise<T> & { abort?: () => void };
+) => AjaxResult<T>;
 
 /**
  * Axios instance interface

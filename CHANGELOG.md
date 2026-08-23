@@ -1,3 +1,21 @@
+## [1.1.2] - 2026-08-23
+
+### Fixed
+
+- **CommonJS build**: the bundle was named `request-manager.cjs.js` while the package is `"type": "module"`, so Node parsed it as ESM and `require('@enegalan/request-manager')` returned an empty object. The CJS bundles are now emitted with a proper `.cjs` extension (`request-manager.cjs` / `request-manager.min.cjs`) and `main` / `exports` were updated.
+- `xhr()` now handles manual aborts: aborting your own `AbortController` (or calling `xhr.abort()`) rejects the promise with `{ message: 'Request was cancelled', xhr }` instead of leaving the promise pending and the request tracked as active forever. The internal abort listener is also detached once the request settles.
+- `axios()` no longer crashes with a bare `ReferenceError` when axios is not available globally; it throws a descriptive error asking for an explicit instance instead.
+- `includeMethod` and `verbose` are stripped from request options before they reach fetch/axios/custom clients, like the other manager-only options already were.
+
+### Changed
+
+- Type definitions: `AjaxFunction` may return either a Promise or a non-promise request object (`AjaxResult`), matching what `ajax()` actually accepts (jQuery jqXHR, Ext.Ajax request objects, raw XHR).
+- Tests restore mocked `global.XMLHttpRequest` / `global.fetch` between suites.
+
+## [1.1.1] - 2026-08-23
+
+- Version bump re-publish of `@enegalan/request-manager`; no code changes.
+
 ## [1.1.0] - 2026-08-23
 
 ### Added

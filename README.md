@@ -485,7 +485,6 @@ Calls `ajaxFunction({ url, ...options })`, then auto-wires cancel by inspecting 
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
     - `cancelToken` (Function|Object): Cancel token or cancel function for other libraries
-    - `verbose` (boolean): If true, cancellation rejects with a message that includes the request id
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
@@ -527,7 +526,6 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
     - `timeout` (number): Request timeout in milliseconds
     - `requestKey` (string|number|Function, optional): Key to identify duplicate requests. If provided, requests with the same key will cancel previous ones. Can be a string, number, or function that returns a key.
     - `abortController` (AbortController): AbortController instance (created automatically if not provided)
-    - `verbose` (boolean): If true, cancellation rejects with a message that includes the request id
     - `noCancel` (boolean): If true, this request will not cancel previous requests with the same ID, allowing concurrent requests
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
@@ -539,6 +537,8 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
 - `statusText`: HTTP status text
 - `headers`: Response headers string
 - `xhr`: The XMLHttpRequest instance
+
+**Note:** If you abort the request yourself (via your own `AbortController` or `xhr.abort()`), the returned promise rejects with `{ message: 'Request was cancelled', xhr }` and the manager removes the entry from its active requests.
 
 **Example:**
 

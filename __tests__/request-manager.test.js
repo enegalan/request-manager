@@ -1,26 +1,5 @@
 import RequestManager from '../main.js';
 
-// Helper function to generate request ID (replicates private #_generateRequestId logic)
-function generateRequestId(url, requestKey = null, includeQuery = false, includeMethod = true, method = 'GET') {
-    if (requestKey !== null && requestKey !== undefined) {
-        if (typeof requestKey === 'function') {
-            try {
-                requestKey = requestKey();
-            } catch (error) {
-                requestKey = null;
-            }
-        }
-        if (requestKey !== null && requestKey !== undefined) return `request_${String(requestKey)}`;
-    }
-    // Use cleaned URL as key when requestKey is null/undefined
-    let cleanedUrl = url || '';
-    if (cleanedUrl.includes('://')) cleanedUrl = cleanedUrl.split('://')[1];
-    if (cleanedUrl.includes('#')) cleanedUrl = cleanedUrl.split('#')[0];
-    if (!includeQuery && cleanedUrl.includes('?')) cleanedUrl = cleanedUrl.split('?')[0];
-    const methodPrefix = includeMethod ? `${(method || 'GET').toUpperCase()}_` : '';
-    return `request_${methodPrefix}${cleanedUrl}`;
-}
-
 describe('RequestManager', () => {
     let requestManager;
 
@@ -235,7 +214,7 @@ describe('RequestManager', () => {
             });
             requestPromise.catch(() => {}); // Handle cancellation error
 
-            const requestId = generateRequestId('/api/cancel-test');
+            const requestId = requestManager.getRequestId('/api/cancel-test');
             expect(requestManager.isActive(requestId)).toBe(true);
             expect(requestManager.cancel(requestId)).toBe(true);
             expect(requestManager.isActive(requestId)).toBe(false);
@@ -259,7 +238,7 @@ describe('RequestManager', () => {
             });
             requestPromise.catch(() => {}); // Handle cancellation error
 
-            const requestId = generateRequestId('/api/cancel-token-test');
+            const requestId = requestManager.getRequestId('/api/cancel-token-test');
             expect(requestManager.cancel(requestId)).toBe(true);
             expect(cancelled).toBe(true);
         });
@@ -279,7 +258,7 @@ describe('RequestManager', () => {
             });
             requestPromise.catch(() => {}); // Handle cancellation error
 
-            const requestId = generateRequestId('/api/cancel-object-test');
+            const requestId = requestManager.getRequestId('/api/cancel-object-test');
             expect(requestManager.cancel(requestId)).toBe(true);
             expect(cancelled).toBe(true);
         });
@@ -301,7 +280,7 @@ describe('RequestManager', () => {
                     settled = true;
                 });
 
-            const requestId = generateRequestId('verbose-test');
+            const requestId = requestManager.getRequestId('verbose-test');
             requestManager.cancel(requestId);
 
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -323,7 +302,7 @@ describe('RequestManager', () => {
                 errorMessage = error.message;
             });
 
-            const requestId = generateRequestId('/api/verbose-global-test');
+            const requestId = verboseManager.getRequestId('/api/verbose-global-test');
             verboseManager.cancel(requestId);
 
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -346,7 +325,7 @@ describe('RequestManager', () => {
                 errorMessage = error.message;
             });
 
-            const requestId = generateRequestId('/api/verbose-setmanageroptions-test');
+            const requestId = requestManager.getRequestId('/api/verbose-setmanageroptions-test');
             requestManager.cancel(requestId);
 
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -376,7 +355,7 @@ describe('RequestManager', () => {
                     settled = true;
                 });
 
-            const requestId = generateRequestId('/api/verbose-runtime-test');
+            const requestId = verboseManager.getRequestId('/api/verbose-runtime-test');
             verboseManager.cancel(requestId);
 
             await new Promise((resolve) => setTimeout(resolve, 10));
@@ -434,7 +413,7 @@ describe('RequestManager', () => {
             requestManager.request('/api/users', promise).catch(() => {});
 
             const id = requestManager.getRequestId('/api/users');
-            expect(id).toBe(generateRequestId('/api/users'));
+            expect(id).toBe('request_GET_/api/users');
             expect(requestManager.isActive(id)).toBe(true);
             expect(requestManager.cancel(id)).toBe(true);
             expect(requestManager.isActive(id)).toBe(false);
@@ -442,9 +421,7 @@ describe('RequestManager', () => {
 
         test('should respect requestKey and includeQuery', () => {
             expect(requestManager.getRequestId('/api/a?q=1', { requestKey: 'k' })).toBe('request_k');
-            expect(requestManager.getRequestId('/api/a?q=1', { includeQuery: true })).toBe(
-                generateRequestId('/api/a?q=1', null, true)
-            );
+            expect(requestManager.getRequestId('/api/a?q=1', { includeQuery: true })).toBe('request_GET_/api/a?q=1');
         });
 
         test('should include the HTTP method by default', () => {
@@ -485,7 +462,7 @@ describe('RequestManager', () => {
             const promise = new Promise(() => {});
             requestManager.request('/api/active-test', promise);
 
-            const requestId = generateRequestId('/api/active-test');
+            const requestId = requestManager.getRequestId('/api/active-test');
             expect(requestManager.isActive(requestId)).toBe(true);
         });
 
@@ -653,6 +630,16 @@ describe('RequestManager', () => {
     });
 
     describe('per-request AbortController isolation', () => {
+        let originalFetch;
+
+        beforeEach(() => {
+            originalFetch = global.fetch;
+        });
+
+        afterEach(() => {
+            global.fetch = originalFetch;
+        });
+
         test('concurrent requests should not share AbortControllers', async () => {
             const controllers = [];
             global.fetch = () => new Promise(() => {});
@@ -737,6 +724,29 @@ describe('RequestManager', () => {
             expect(fetchOptions.headers).toEqual({ 'Content-Type': 'application/json' });
             expect(fetchOptions.body).toBe(JSON.stringify({ name: 'John' }));
             expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
+        });
+
+        test('should not leak manager-only options into the fetch config', async () => {
+            let fetchOptions = null;
+
+            global.fetch = (url, options) => {
+                fetchOptions = options;
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    json: () => Promise.resolve({ data: 'success' }),
+                });
+            };
+
+            await requestManager.fetch('/api/users', {
+                includeMethod: false,
+                includeQuery: true,
+                verbose: true,
+            });
+
+            expect(fetchOptions.includeMethod).toBeUndefined();
+            expect(fetchOptions.includeQuery).toBeUndefined();
+            expect(fetchOptions.verbose).toBeUndefined();
         });
 
         test('should cancel previous request with same URL', async () => {
@@ -1228,6 +1238,14 @@ describe('RequestManager', () => {
                 console.warn = originalWarn;
             }
         });
+
+        test('should throw a clear error when no axios instance is available', async () => {
+            delete global.axios;
+
+            expect(() => requestManager.axios('/api/users')).toThrow(
+                'axios was not found: pass an axios instance as the third argument of requestManager.axios() or make sure axios is available globally'
+            );
+        });
     });
 
     describe('ajax() method', () => {
@@ -1369,6 +1387,16 @@ describe('RequestManager', () => {
     });
 
     describe('xhr() method', () => {
+        let originalXMLHttpRequest;
+
+        beforeEach(() => {
+            originalXMLHttpRequest = global.XMLHttpRequest;
+        });
+
+        afterEach(() => {
+            global.XMLHttpRequest = originalXMLHttpRequest;
+        });
+
         test('should execute an XHR GET request', async () => {
             let openCalled = false;
             let sendCalled = false;
@@ -1783,6 +1811,88 @@ describe('RequestManager', () => {
 
             expect(result.data).toBe('{invalid-json}');
         });
+
+        test('should reject and clean up when the user aborts the signal manually', async () => {
+            const xhrMock = {
+                open: () => {},
+                send: () => {},
+                abort: function () {
+                    if (typeof this.onabort === 'function') this.onabort();
+                },
+                setRequestHeader: () => {},
+                getAllResponseHeaders: () => '',
+                getResponseHeader: () => null,
+                onload: null,
+                onerror: null,
+                ontimeout: null,
+                onabort: null,
+            };
+
+            global.XMLHttpRequest = function () {
+                return xhrMock;
+            };
+
+            const controller = new AbortController();
+            const resultPromise = requestManager.xhr('/api/manual-abort', {
+                abortController: controller,
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            expect(requestManager.getActiveCount()).toBe(1);
+
+            controller.abort();
+
+            await expect(resultPromise).rejects.toEqual({
+                message: 'Request was cancelled',
+                xhr: xhrMock,
+            });
+            expect(requestManager.getActiveCount()).toBe(0);
+        });
+
+        test('should detach the abort listener once the request settles', async () => {
+            const xhrMock = {
+                open: () => {},
+                send: () => {},
+                setRequestHeader: () => {},
+                getAllResponseHeaders: () => '',
+                getResponseHeader: () => null,
+                responseText: '{"data":"success"}',
+                response: '{"data":"success"}',
+                status: 200,
+                statusText: 'OK',
+                onload: null,
+                onerror: null,
+                ontimeout: null,
+                onabort: null,
+            };
+
+            global.XMLHttpRequest = function () {
+                return xhrMock;
+            };
+
+            const controller = new AbortController();
+            const signal = controller.signal;
+            const originalRemoveEventListener = signal.removeEventListener.bind(signal);
+            let removeArgs = null;
+            signal.removeEventListener = (...args) => {
+                if (!removeArgs) removeArgs = args;
+                return originalRemoveEventListener(...args);
+            };
+
+            const resultPromise = requestManager.xhr('/api/detach-listener', {
+                abortController: controller,
+            });
+
+            setTimeout(() => {
+                xhrMock.onload();
+            }, 10);
+
+            await resultPromise;
+
+            expect(removeArgs[0]).toBe('abort');
+            expect(typeof removeArgs[1]).toBe('function');
+            signal.removeEventListener = originalRemoveEventListener;
+        });
     });
 
     describe('getOptions() method', () => {
@@ -1934,7 +2044,9 @@ describe('RequestManager', () => {
             const data = await result.json();
 
             expect(data.second).toBe(true);
-            expect(requestManager.isActive(generateRequestId('/api/users?page=1', null, true))).toBe(false);
+            expect(
+                requestManager.isActive(requestManager.getRequestId('/api/users?page=1', { includeQuery: true }))
+            ).toBe(false);
         });
 
         test('should strip query by default so different pages cancel each other', async () => {
