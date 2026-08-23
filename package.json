@@ -1,15 +1,15 @@
 {
-    "name": "@enegalan/request-manager",
-    "version": "1.0.10",
+    "name": "requestmanager",
+    "version": "2.0.0",
     "description": "JavaScript library for managing and regulating HTTP requests efficiently",
     "publishConfig": {
         "access": "public"
     },
-    "main": "dist/request-manager.cjs.js",
-    "module": "dist/request-manager.esm.js",
-    "browser": "dist/request-manager.min.js",
-    "unpkg": "dist/request-manager.min.js",
-    "jsdelivr": "dist/request-manager.min.js",
+    "main": "dist/requestmanager.cjs.js",
+    "module": "dist/requestmanager.esm.js",
+    "browser": "dist/requestmanager.min.js",
+    "unpkg": "dist/requestmanager.min.js",
+    "jsdelivr": "dist/requestmanager.min.js",
     "types": "index.d.ts",
     "type": "module",
     "sideEffects": false,
@@ -22,10 +22,10 @@
     "exports": {
         ".": {
             "types": "./index.d.ts",
-            "import": "./dist/request-manager.esm.js",
-            "require": "./dist/request-manager.cjs.js",
-            "browser": "./dist/request-manager.min.js",
-            "default": "./dist/request-manager.esm.js"
+            "import": "./dist/requestmanager.esm.js",
+            "require": "./dist/requestmanager.cjs.js",
+            "browser": "./dist/requestmanager.min.js",
+            "default": "./dist/requestmanager.esm.js"
         },
         "./package.json": "./package.json"
     },

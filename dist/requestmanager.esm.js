@@ -9,7 +9,6 @@
 class RequestManager {
     constructor(options = {}) {
         /**
-         * Map to store active requests by their unique identifier.
          * @type {Map<string, import('./index.d.ts').ActiveRequest>}
          */
         this.activeRequests = new Map();
@@ -593,4 +592,4 @@ class RequestManager {
 }
 
 export { RequestManager, RequestManager as default };
-//# sourceMappingURL=request-manager.esm.js.map
+//# sourceMappingURL=requestmanager.esm.js.map

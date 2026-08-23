@@ -1,8 +1,5 @@
-(function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-    typeof define === 'function' && define.amd ? define(factory) :
-    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.RequestManager = factory());
-})(this, (function () { 'use strict';
+var RequestManager = (function () {
+    'use strict';
 
     /**
      * RequestManager - A library for managing and regulating HTTP requests efficiently.
@@ -15,7 +12,6 @@
     class RequestManager {
         constructor(options = {}) {
             /**
-             * Map to store active requests by their unique identifier.
              * @type {Map<string, import('./index.d.ts').ActiveRequest>}
              */
             this.activeRequests = new Map();
@@ -600,5 +596,5 @@
 
     return RequestManager;
 
-}));
-//# sourceMappingURL=request-manager.umd.js.map
+})();
+//# sourceMappingURL=requestmanager.js.map

@@ -7,7 +7,7 @@ export default [
     {
         input: 'main.js',
         output: {
-            file: 'dist/request-manager.esm.js',
+            file: 'dist/requestmanager.esm.js',
             format: 'esm',
             banner,
             sourcemap: true,
@@ -17,7 +17,7 @@ export default [
     {
         input: 'main.js',
         output: {
-            file: 'dist/request-manager.esm.min.js',
+            file: 'dist/requestmanager.esm.min.js',
             format: 'esm',
             banner,
             sourcemap: true,
@@ -28,7 +28,7 @@ export default [
     {
         input: 'main.js',
         output: {
-            file: 'dist/request-manager.cjs.js',
+            file: 'dist/requestmanager.cjs.js',
             format: 'cjs',
             banner,
             sourcemap: true,
@@ -39,7 +39,7 @@ export default [
     {
         input: 'main.js',
         output: {
-            file: 'dist/request-manager.cjs.min.js',
+            file: 'dist/requestmanager.cjs.min.js',
             format: 'cjs',
             banner,
             sourcemap: true,
@@ -51,7 +51,7 @@ export default [
     {
         input: 'index.js',
         output: {
-            file: 'dist/request-manager.umd.js',
+            file: 'dist/requestmanager.umd.js',
             format: 'umd',
             name: 'RequestManager',
             banner,
@@ -62,7 +62,7 @@ export default [
     {
         input: 'index.js',
         output: {
-            file: 'dist/request-manager.umd.min.js',
+            file: 'dist/requestmanager.umd.min.js',
             format: 'umd',
             name: 'RequestManager',
             banner,
@@ -74,7 +74,7 @@ export default [
     {
         input: 'index.js',
         output: {
-            file: 'dist/request-manager.js',
+            file: 'dist/requestmanager.js',
             format: 'iife',
             name: 'RequestManager',
             banner,
@@ -85,7 +85,7 @@ export default [
     {
         input: 'index.js',
         output: {
-            file: 'dist/request-manager.min.js',
+            file: 'dist/requestmanager.min.js',
             format: 'iife',
             name: 'RequestManager',
             banner,

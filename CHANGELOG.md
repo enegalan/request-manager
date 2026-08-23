@@ -1,3 +1,10 @@
+## [2.0.0] - 2026-08-21
+
+### Changed
+
+- **Breaking:** package renamed from `@enegalan/request-manager` to `requestmanager`. Install with `npm install requestmanager` and update imports to `import RequestManager from 'requestmanager'`.
+- dist bundle filenames renamed from `request-manager.*` to `requestmanager.*`; CDN URLs now use `https://unpkg.com/requestmanager/dist/requestmanager.min.js` (or jsDelivr equivalent).
+
 ## [1.0.10] - 2026-08-20
 
 ### Added
