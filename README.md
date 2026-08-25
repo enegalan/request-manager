@@ -41,46 +41,46 @@ requestManager.fetch('/api/feed', { noCancel: true }); // never cancelled
 ## Table of Contents
 
 - [@enegalan/request-manager](#enegalanrequest-manager)
-  - [Why?](#why)
-  - [Key Features](#key-features)
-  - [Table of Contents](#table-of-contents)
-  - [Installation](#installation)
-  - [Usage](#usage)
-    - [Usage in Different Environments](#usage-in-different-environments)
-    - [TypeScript](#typescript)
-    - [Which method should I use?](#which-method-should-i-use)
-    - [Basic Example with fetch()](#basic-example-with-fetch)
-    - [POST Request with Options](#post-request-with-options)
-    - [Using request()](#using-request)
-    - [Automatic Cancellation with Same URL](#automatic-cancellation-with-same-url)
-    - [Using requestKey to Override URL-based ID](#using-requestkey-to-override-url-based-id)
-    - [Using requestKey with Function](#using-requestkey-with-function)
-    - [Using noCancel to Allow Concurrent Requests](#using-nocancel-to-allow-concurrent-requests)
-    - [Using includeQuery to Distinguish Query Strings](#using-includequery-to-distinguish-query-strings)
-    - [Using with Axios](#using-with-axios)
-    - [Using with jQuery / Ext.Ajax (`ajax()`)](#using-with-jquery--extajax-ajax)
-    - [Using with Other Libraries](#using-with-other-libraries)
-  - [API Reference](#api-reference)
-    - [`new RequestManager(options)`](#new-requestmanageroptions)
-    - [`request(url, requestPromise, options)`](#requesturl-requestpromise-options)
-    - [`fetch(url, options)`](#fetchurl-options)
-    - [`axios(url, options, axiosInstance)`](#axiosurl-options-axiosinstance)
-    - [`ajax(ajaxFunction, url, options)`](#ajaxajaxfunction-url-options)
-    - [`xhr(url, options)`](#xhrurl-options)
-    - [`getRequestId(url, options)`](#getrequestidurl-options)
-    - [`cancel(requestId)`](#cancelrequestid)
-    - [`cancelAll()`](#cancelall)
-    - [`isActive(requestId)`](#isactiverequestid)
-    - [`getActiveCount()`](#getactivecount)
-    - [`clear()`](#clear)
-    - [`getSignal()`](#getsignal)
-    - [`getAbortController()`](#getabortcontroller)
-    - [`getOptions()`](#getoptions)
-    - [`setOptions(options)`](#setoptionsoptions)
-    - [`addAbortListener(abortMethod, signal)`](#addabortlistenerabortmethod-signal)
-  - [Browser Support](#browser-support)
-  - [Contributing](#contributing)
-  - [License](#license)
+    - [Why?](#why)
+    - [Key Features](#key-features)
+    - [Table of Contents](#table-of-contents)
+    - [Installation](#installation)
+    - [Usage](#usage)
+        - [Usage in Different Environments](#usage-in-different-environments)
+        - [TypeScript](#typescript)
+        - [Which method should I use?](#which-method-should-i-use)
+        - [Basic Example with fetch()](#basic-example-with-fetch)
+        - [POST Request with Options](#post-request-with-options)
+        - [Using request()](#using-request)
+        - [Automatic Cancellation with Same URL](#automatic-cancellation-with-same-url)
+        - [Using requestKey to Override URL-based ID](#using-requestkey-to-override-url-based-id)
+        - [Using requestKey with Function](#using-requestkey-with-function)
+        - [Using noCancel to Allow Concurrent Requests](#using-nocancel-to-allow-concurrent-requests)
+        - [Using includeQuery to Distinguish Query Strings](#using-includequery-to-distinguish-query-strings)
+        - [Using with Axios](#using-with-axios)
+        - [Using with jQuery / Ext.Ajax (`ajax()`)](#using-with-jquery--extajax-ajax)
+        - [Using with Other Libraries](#using-with-other-libraries)
+    - [API Reference](#api-reference)
+        - [`new RequestManager(options)`](#new-requestmanageroptions)
+        - [`request(url, requestPromise, options)`](#requesturl-requestpromise-options)
+        - [`fetch(url, options)`](#fetchurl-options)
+        - [`axios(url, options, axiosInstance)`](#axiosurl-options-axiosinstance)
+        - [`ajax(ajaxFunction, url, options)`](#ajaxajaxfunction-url-options)
+        - [`xhr(url, options)`](#xhrurl-options)
+        - [`getRequestId(url, options)`](#getrequestidurl-options)
+        - [`cancel(requestId)`](#cancelrequestid)
+        - [`cancelAll()`](#cancelall)
+        - [`isActive(requestId)`](#isactiverequestid)
+        - [`getActiveCount()`](#getactivecount)
+        - [`clear()`](#clear)
+        - [`getSignal()`](#getsignal)
+        - [`getAbortController()`](#getabortcontroller)
+        - [`getOptions()`](#getoptions)
+        - [`setOptions(options)`](#setoptionsoptions)
+        - [`addAbortListener(abortMethod, signal)`](#addabortlistenerabortmethod-signal)
+    - [Browser Support](#browser-support)
+    - [Contributing](#contributing)
+    - [License](#license)
 
 ## Installation
 
@@ -776,13 +776,13 @@ requestManager.request(url, req, { abortController: abortController });
 
 Bundles are transpiled with Babel (`@babel/preset-env`), so modern syntax does not leak into `dist/`.
 
-| Environment          | Supported                     |
-| -------------------- | ----------------------------- |
-| Chrome / Edge        | Last 2 versions               |
-| Firefox              | Last 2 versions + ESR         |
-| Safari               | ≥ 10                          |
-| Node.js              | ≥ 14                          |
-| Module formats       | ESM · CommonJS · UMD · IIFE   |
+| Environment    | Supported                   |
+| -------------- | --------------------------- |
+| Chrome / Edge  | Last 2 versions             |
+| Firefox        | Last 2 versions + ESR       |
+| Safari         | ≥ 10                        |
+| Node.js        | ≥ 14                        |
+| Module formats | ESM · CommonJS · UMD · IIFE |
 
 ## Contributing
 
