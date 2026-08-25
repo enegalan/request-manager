@@ -810,15 +810,19 @@ requestManager.request(url, req, { abortController: abortController });
 
 ## Browser Support
 
-Bundles are transpiled with Babel (`@babel/preset-env`), so modern syntax does not leak into `dist/`.
+`@enegalan/request-manager` supports the following browser versions:
 
-| Environment    | Supported                   |
-| -------------- | --------------------------- |
-| Chrome / Edge  | Last 2 versions             |
-| Firefox        | Last 2 versions + ESR       |
-| Safari         | ≥ 10                        |
-| Node.js        | ≥ 14                        |
-| Module formats | ESM · CommonJS · UMD · IIFE |
+| Browser           | Supported version |
+| ----------------- | ----------------- |
+| Chrome            | ≥ 66              |
+| Firefox           | ≥ 57              |
+| Safari            | ≥ 12.1            |
+| Edge              | ≥ 16              |
+| Internet Explorer | Not supported     |
+
+> [!NOTE]
+> `@enegalan/request-manager` relies on modern browser APIs such as
+> `AbortController`. Older browsers may work with the appropriate polyfills, but are not officially supported.
 
 ## Contributing
 
