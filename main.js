@@ -343,7 +343,7 @@ class RequestManager {
         // Handle function requestKey
         if (typeof requestKey === 'function') {
             try {
-                requestKey = requestKey();
+                requestKey = requestKey(options);
             } catch {
                 requestKey = null;
             }
