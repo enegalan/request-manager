@@ -11,6 +11,7 @@ describe('RequestManager', () => {
         test('should create a new RequestManager instance', () => {
             expect(requestManager).toBeInstanceOf(RequestManager);
             expect(requestManager.activeRequests).toBeInstanceOf(Map);
+            expect(requestManager.getActiveRequests()).toBe(requestManager.activeRequests);
             expect(requestManager.getActiveCount()).toBe(0);
         });
     });

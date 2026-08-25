@@ -1,3 +1,10 @@
+## [1.1.5] - 2026-08-25
+
+### Changed
+
+- `#_hasValue()` inlined as `!= null`.
+- `xhr()` error/abort handling is shorter (shared `fail` helper).
+
 ## [1.1.4] - 2026-08-25
 
 ### Added

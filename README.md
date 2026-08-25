@@ -685,7 +685,7 @@ Cancels all active requests.
 
 ### `getActiveRequests()`
 
-Returns the live `Map` of in-flight requests, keyed by request identifier. Mutations on the returned map affect the manager; use `getActiveRequest(requestId)` for lookups.
+Returns the live `Map` of in-flight requests, keyed by request identifier. Same instance as `requestManager.activeRequests` (same pattern as `options` / `getOptions()`).
 
 **Returns:** `Map<string, ActiveRequest>`
 

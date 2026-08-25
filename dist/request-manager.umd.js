@@ -116,9 +116,10 @@
     constructor() {
       var _options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
       /**
-       * Checks if a value is not null or undefined
-       * @param {*} value - The value to check
-       * @returns {boolean} True if the value is not null or undefined, false otherwise
+       * Resolves the AbortController for a request: explicit option, pending handoff, or new.
+       * Clears the pending handoff so concurrent requests do not share it.
+       * @param {AbortController|undefined} provided - Optional AbortController from options
+       * @returns {AbortController}
        * @private
        */
       _classPrivateMethodInitSpec(this, _RequestManager_brand);
@@ -374,80 +375,66 @@
         var xhr = new XMLHttpRequest();
         var method = (options.method || 'GET').toUpperCase();
         // Create a promise that wraps the XHR request
-        var xhrPromise = new Promise((resolve, reject) => {
-          xhr.onload = function () {
+        return new Promise((resolve, reject) => {
+          var _fetchOptions$signal2;
+          var abortListener = () => xhr.abort();
+          var detachAbortListener = () => {
+            var _fetchOptions$signal;
+            (_fetchOptions$signal = fetchOptions.signal) === null || _fetchOptions$signal === void 0 || _fetchOptions$signal.removeEventListener('abort', abortListener);
+          };
+          var fail = payload => {
             detachAbortListener();
-            if (xhr.status >= 200 && xhr.status < 300) {
-              var _xhr$getResponseHeade;
-              var response = xhr.response;
-              if (options.responseType === 'json' || (!options.responseType || options.responseType === 'text') && (_xhr$getResponseHeade = xhr.getResponseHeader('Content-Type')) !== null && _xhr$getResponseHeade !== void 0 && _xhr$getResponseHeade.includes('application/json') && typeof response === 'string') {
-                try {
-                  response = JSON.parse(response);
-                } catch (_unused) {}
-              }
-              resolve({
-                data: response,
-                status: xhr.status,
-                statusText: xhr.statusText,
-                headers: xhr.getAllResponseHeaders(),
-                xhr: xhr
-              });
-            } else {
-              reject({
+            reject(_objectSpread2({
+              xhr
+            }, payload));
+          };
+          xhr.onload = () => {
+            var _xhr$getResponseHeade;
+            if (xhr.status < 200 || xhr.status >= 300) {
+              fail({
                 message: "Request failed with status ".concat(xhr.status),
                 status: xhr.status,
-                statusText: xhr.statusText,
-                xhr: xhr
+                statusText: xhr.statusText
               });
+              return;
             }
-          };
-          xhr.onerror = function () {
             detachAbortListener();
-            reject({
-              message: 'Network error',
-              xhr: xhr
+            var response = xhr.response;
+            if (options.responseType === 'json' || (!options.responseType || options.responseType === 'text') && (_xhr$getResponseHeade = xhr.getResponseHeader('Content-Type')) !== null && _xhr$getResponseHeade !== void 0 && _xhr$getResponseHeade.includes('application/json') && typeof response === 'string') {
+              try {
+                response = JSON.parse(response);
+              } catch (_unused) {}
+            }
+            resolve({
+              data: response,
+              status: xhr.status,
+              statusText: xhr.statusText,
+              headers: xhr.getAllResponseHeaders(),
+              xhr
             });
           };
-          xhr.ontimeout = function () {
-            detachAbortListener();
-            reject({
-              message: 'Request timeout',
-              xhr: xhr
-            });
-          };
-
-          // Open the request
-          xhr.open(method, url, true);
-
-          // Set response type
-          if (options.responseType) xhr.responseType = options.responseType;
-          // Set withCredentials
-          if (options.withCredentials !== undefined) xhr.withCredentials = options.withCredentials;
-          // Set timeout
-          if (options.timeout !== undefined) xhr.timeout = options.timeout;
-          // Set headers
-          if (options.headers) Object.keys(options.headers).forEach(key => {
-            xhr.setRequestHeader(key, options.headers[key]);
+          xhr.onerror = () => fail({
+            message: 'Network error'
           });
-
-          // Connect abort signal to xhr.abort()
-          var abortListener = () => xhr.abort();
-          if (fetchOptions.signal) fetchOptions.signal.addEventListener('abort', abortListener);
-          // Detach the listener once the request settles so completed requests do not keep it alive
-          var detachAbortListener = () => {
-            if (fetchOptions.signal) fetchOptions.signal.removeEventListener('abort', abortListener);
-          };
-          xhr.onabort = function () {
-            reject({
-              message: 'Request was cancelled',
-              xhr: xhr
+          xhr.ontimeout = () => fail({
+            message: 'Request timeout'
+          });
+          xhr.onabort = () => reject({
+            message: 'Request was cancelled',
+            xhr
+          });
+          xhr.open(method, url, true);
+          if (options.responseType) xhr.responseType = options.responseType;
+          if (options.withCredentials !== undefined) xhr.withCredentials = options.withCredentials;
+          if (options.timeout !== undefined) xhr.timeout = options.timeout;
+          if (options.headers) {
+            Object.keys(options.headers).forEach(key => {
+              xhr.setRequestHeader(key, options.headers[key]);
             });
-          };
-
-          // Send the request
+          }
+          (_fetchOptions$signal2 = fetchOptions.signal) === null || _fetchOptions$signal2 === void 0 || _fetchOptions$signal2.addEventListener('abort', abortListener);
           xhr.send(options.body || null);
         });
-        return xhrPromise;
       };
       return _assertClassBrand(_RequestManager_brand, this, _request).call(this, this.getRequestId(url, options), xhrFunction, options);
     }
@@ -480,7 +467,7 @@
           requestKey = null;
         }
       }
-      if (_assertClassBrand(_RequestManager_brand, this, _hasValue).call(this, requestKey)) return "".concat(prefix).concat(String(requestKey));
+      if (requestKey != null) return "".concat(prefix).concat(String(requestKey));
 
       // Use cleaned URL as key as fallback
       var cleanedUrl = url || '';
@@ -518,7 +505,7 @@
 
       // Reject the wrapper promise
       var error = this.getOptions().verbose ? new Error("Request ".concat(requestId, " was cancelled")) : null;
-      _assertClassBrand(_RequestManager_brand, this, _handleRequestFinish).call(this, requestId, _assertClassBrand(_RequestManager_brand, this, _hasValue).call(this, error), () => requestInfo.rejectWrapper(error));
+      _assertClassBrand(_RequestManager_brand, this, _handleRequestFinish).call(this, requestId, error != null, () => requestInfo.rejectWrapper(error));
       return true;
     }
 
@@ -552,16 +539,6 @@
       return cancelledCount;
     }
   }
-  function _hasValue(value) {
-    return value !== null && value !== undefined;
-  }
-  /**
-   * Resolves the AbortController for a request: explicit option, pending handoff, or new.
-   * Clears the pending handoff so concurrent requests do not share it.
-   * @param {AbortController|undefined} provided - Optional AbortController from options
-   * @returns {AbortController}
-   * @private
-   */
   function _resolveAbortController(provided) {
     var abortController = provided || this.abortController || new AbortController();
     this.abortController = null;
@@ -711,7 +688,7 @@
           return;
         }
         // Only delete if this is still the active request
-        _assertClassBrand(_RequestManager_brand, scope, _handleRequestFinish).call(scope, requestId, _assertClassBrand(_RequestManager_brand, scope, _hasValue).call(scope, error), () => rejectWrapper(error));
+        _assertClassBrand(_RequestManager_brand, scope, _handleRequestFinish).call(scope, requestId, error != null, () => rejectWrapper(error));
       }
     } else {
       // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
