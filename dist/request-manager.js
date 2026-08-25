@@ -456,7 +456,7 @@ var RequestManager = (function () {
       // Handle function requestKey
       if (typeof requestKey === 'function') {
         try {
-          requestKey = requestKey();
+          requestKey = requestKey(options);
         } catch (_unused2) {
           requestKey = null;
         }
