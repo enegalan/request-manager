@@ -1,3 +1,21 @@
+## [1.1.4] - 2026-08-25
+
+### Added
+
+- `getActiveRequests()` — returns the live `Map` of in-flight requests.
+- `getActiveRequest(requestId)` — returns a single `ActiveRequest` entry, or `undefined`.
+
+### Changed
+
+- Request cleanup is unified in `#_handleRequestFinish()` (replaces `#_deleteRequest()` / `#_completeRequest()`).
+- Null/undefined checks go through `#_hasValue()`.
+
+## [1.1.3] - 2026-08-23
+
+### Fixed
+
+- `requestKey` functions now receive the request `options`, so key generation can depend on method, query, or other request fields.
+
 ## [1.1.2] - 2026-08-23
 
 ### Fixed

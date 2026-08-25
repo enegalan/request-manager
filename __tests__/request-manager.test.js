@@ -457,6 +457,46 @@ describe('RequestManager', () => {
         });
     });
 
+    describe('getActiveRequests()', () => {
+        test('should return the live active requests map', () => {
+            const promise = new Promise(() => {});
+            requestManager.request('/api/map-test', promise);
+
+            const requestId = requestManager.getRequestId('/api/map-test');
+            const map = requestManager.getActiveRequests();
+
+            expect(map).toBeInstanceOf(Map);
+            expect(map).toBe(requestManager.activeRequests);
+            expect(map.has(requestId)).toBe(true);
+            expect(map.get(requestId).abortController).toBeInstanceOf(AbortController);
+        });
+    });
+
+    describe('getActiveRequest()', () => {
+        test('should return the active request entry', () => {
+            const promise = new Promise(() => {});
+            requestManager.request('/api/entry-test', promise);
+
+            const requestId = requestManager.getRequestId('/api/entry-test');
+            const entry = requestManager.getActiveRequest(requestId);
+
+            expect(entry).toBeDefined();
+            expect(entry.isCancelled).toBe(false);
+            expect(entry.abortController).toBeInstanceOf(AbortController);
+            expect(typeof entry.resolveWrapper).toBe('function');
+            expect(typeof entry.rejectWrapper).toBe('function');
+        });
+
+        test('should return undefined for a non-existent request', () => {
+            expect(requestManager.getActiveRequest('non-existent')).toBeUndefined();
+        });
+
+        test('should return undefined after the request completes', async () => {
+            await requestManager.request('entry-complete', Promise.resolve('done'));
+            expect(requestManager.getActiveRequest('entry-complete')).toBeUndefined();
+        });
+    });
+
     describe('isActive()', () => {
         test('should return true for active request', () => {
             const promise = new Promise(() => {});

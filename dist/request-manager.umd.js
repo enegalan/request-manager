@@ -116,10 +116,9 @@
     constructor() {
       var _options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
       /**
-       * Resolves the AbortController for a request: explicit option, pending handoff, or new.
-       * Clears the pending handoff so concurrent requests do not share it.
-       * @param {AbortController|undefined} provided - Optional AbortController from options
-       * @returns {AbortController}
+       * Checks if a value is not null or undefined
+       * @param {*} value - The value to check
+       * @returns {boolean} True if the value is not null or undefined, false otherwise
        * @private
        */
       _classPrivateMethodInitSpec(this, _RequestManager_brand);
@@ -176,6 +175,23 @@
     getAbortController() {
       this.abortController = new AbortController();
       return this.abortController;
+    }
+
+    /**
+     * Gets the active requests
+     * @returns {Map<string, import('./index.d.ts').ActiveRequest>} The active requests
+     */
+    getActiveRequests() {
+      return this.activeRequests;
+    }
+
+    /**
+     * Gets the active request by its identifier
+     * @param {string} requestId - The unique identifier of the request
+     * @returns {import('./index.d.ts').ActiveRequest|undefined} The active request or undefined if not found
+     */
+    getActiveRequest(requestId) {
+      return this.activeRequests.get(requestId);
     }
 
     /**
@@ -464,7 +480,7 @@
           requestKey = null;
         }
       }
-      if (requestKey !== null && requestKey !== undefined) return "".concat(prefix).concat(String(requestKey));
+      if (_assertClassBrand(_RequestManager_brand, this, _hasValue).call(this, requestKey)) return "".concat(prefix).concat(String(requestKey));
 
       // Use cleaned URL as key as fallback
       var cleanedUrl = url || '';
@@ -501,7 +517,8 @@
       }
 
       // Reject the wrapper promise
-      _assertClassBrand(_RequestManager_brand, this, _deleteRequest).call(this, requestId, requestInfo.rejectWrapper, this.getOptions().verbose ? new Error("Request ".concat(requestId, " was cancelled")) : null);
+      var error = this.getOptions().verbose ? new Error("Request ".concat(requestId, " was cancelled")) : null;
+      _assertClassBrand(_RequestManager_brand, this, _handleRequestFinish).call(this, requestId, _assertClassBrand(_RequestManager_brand, this, _hasValue).call(this, error), () => requestInfo.rejectWrapper(error));
       return true;
     }
 
@@ -535,6 +552,16 @@
       return cancelledCount;
     }
   }
+  function _hasValue(value) {
+    return value !== null && value !== undefined;
+  }
+  /**
+   * Resolves the AbortController for a request: explicit option, pending handoff, or new.
+   * Clears the pending handoff so concurrent requests do not share it.
+   * @param {AbortController|undefined} provided - Optional AbortController from options
+   * @returns {AbortController}
+   * @private
+   */
   function _resolveAbortController(provided) {
     var abortController = provided || this.abortController || new AbortController();
     this.abortController = null;
@@ -592,30 +619,16 @@
     }
   }
   /**
-   * Deletes a request from the active requests map and rejects the wrapper promise
+   * Handles the completion of a request by deleting it from the active requests map and resolving/rejecting the wrapper promise
    * @param {string} requestId - The unique identifier of the request
-   * @param {Function} rejectWrapper - The function to reject the wrapper promise
-   * @param {*} error - The error to reject the wrapper promise with; the wrapper is not rejected if null/undefined
+   * @param {boolean} condition - The condition to resolve/reject the wrapper promise
+   * @param {Function} wrapperPromise - The function to resolve/reject the wrapper promise
    * @private
    */
-  function _deleteRequest(requestId, rejectWrapper, error) {
+  function _handleRequestFinish(requestId, condition, wrapperPromise) {
     this.activeRequests.delete(requestId);
-    if (error !== null && error !== undefined) {
-      rejectWrapper(error);
-    }
-  }
-  /**
-   * Completes a request by deleting it from the active requests map and resolving the wrapper promise
-   * @param {string} requestId - The unique identifier of the request
-   * @param {Function} resolveWrapper - The function to resolve the wrapper promise
-   * @param {Promise} requestPromise - The request promise
-   * @param {boolean} isCancelled - Whether the request was cancelled
-   * @private
-   */
-  function _completeRequest(requestId, resolveWrapper, requestPromise, isCancelled) {
-    this.activeRequests.delete(requestId);
-    if (!isCancelled) {
-      resolveWrapper(requestPromise);
+    if (condition) {
+      wrapperPromise();
     }
   }
   /**
@@ -681,7 +694,7 @@
       try {
         var req = requestPromise.then(result => {
           if (this.activeRequests.get(requestId) !== requestInfo) return;
-          _assertClassBrand(_RequestManager_brand, this, _completeRequest).call(this, requestId, resolveWrapper, result, requestInfo.isCancelled);
+          _assertClassBrand(_RequestManager_brand, this, _handleRequestFinish).call(this, requestId, !requestInfo.isCancelled, () => resolveWrapper(result));
         });
         if (req.catch) req.catch(error => {
           onError(this, error);
@@ -698,7 +711,7 @@
           return;
         }
         // Only delete if this is still the active request
-        _assertClassBrand(_RequestManager_brand, scope, _deleteRequest).call(scope, requestId, rejectWrapper, error);
+        _assertClassBrand(_RequestManager_brand, scope, _handleRequestFinish).call(scope, requestId, _assertClassBrand(_RequestManager_brand, scope, _hasValue).call(scope, error), () => rejectWrapper(error));
       }
     } else {
       // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
@@ -706,7 +719,7 @@
       var xhr = requestPromise && (requestPromise.xhr || (typeof XMLHttpRequest !== 'undefined' && requestPromise instanceof XMLHttpRequest ? requestPromise : null));
       var finish = () => {
         if (this.activeRequests.get(requestId) !== requestInfo) return;
-        _assertClassBrand(_RequestManager_brand, this, _completeRequest).call(this, requestId, resolveWrapper, requestPromise, requestInfo.isCancelled);
+        _assertClassBrand(_RequestManager_brand, this, _handleRequestFinish).call(this, requestId, !requestInfo.isCancelled, () => resolveWrapper(requestPromise));
       };
       if (xhr && typeof xhr.addEventListener === 'function') {
         xhr.addEventListener('loadend', finish);

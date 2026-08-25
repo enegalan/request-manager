@@ -348,6 +348,20 @@ declare class RequestManager {
     getAbortController(): AbortController;
 
     /**
+     * Returns the live map of in-flight requests keyed by request identifier.
+     * Mutating the map affects the manager; prefer `getActiveRequest(requestId)` for lookups.
+     * @returns The active requests map
+     */
+    getActiveRequests(): Map<string, ActiveRequest>;
+
+    /**
+     * Returns the active request entry for a given identifier, if any.
+     * @param requestId - The unique identifier of the request
+     * @returns The active request, or undefined if it is not in flight
+     */
+    getActiveRequest(requestId: string): ActiveRequest | undefined;
+
+    /**
      * Executes an HTTP request, cancelling any previous request with the same identifier.
      *
      * @param url - The URL to request

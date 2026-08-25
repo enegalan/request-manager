@@ -64,6 +64,23 @@ class RequestManager {
     }
 
     /**
+     * Gets the active requests
+     * @returns {Map<string, import('./index.d.ts').ActiveRequest>} The active requests
+     */
+    getActiveRequests() {
+        return this.activeRequests;
+    }
+
+    /**
+     * Gets the active request by its identifier
+     * @param {string} requestId - The unique identifier of the request
+     * @returns {import('./index.d.ts').ActiveRequest|undefined} The active request or undefined if not found
+     */
+    getActiveRequest(requestId) {
+        return this.activeRequests.get(requestId);
+    }
+
+    /**
      * Checks if a request with the given identifier is currently active.
      * @param {string} requestId - The unique identifier to check
      * @returns {boolean} True if the request is active, false otherwise
@@ -348,7 +365,7 @@ class RequestManager {
                 requestKey = null;
             }
         }
-        if (requestKey !== null && requestKey !== undefined) return `${prefix}${String(requestKey)}`;
+        if (this.#_hasValue(requestKey)) return `${prefix}${String(requestKey)}`;
 
         // Use cleaned URL as key as fallback
         let cleanedUrl = url || '';
@@ -390,11 +407,8 @@ class RequestManager {
         }
 
         // Reject the wrapper promise
-        this.#_deleteRequest(
-            requestId,
-            requestInfo.rejectWrapper,
-            this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null
-        );
+        const error = this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null;
+        this.#_handleRequestFinish(requestId, this.#_hasValue(error), () => requestInfo.rejectWrapper(error));
         return true;
     }
 
@@ -426,6 +440,16 @@ class RequestManager {
             if (this.cancel(requestId)) cancelledCount++;
         });
         return cancelledCount;
+    }
+
+    /**
+     * Checks if a value is not null or undefined
+     * @param {*} value - The value to check
+     * @returns {boolean} True if the value is not null or undefined, false otherwise
+     * @private
+     */
+    #_hasValue(value) {
+        return value !== null && value !== undefined;
     }
 
     /**
@@ -504,31 +528,16 @@ class RequestManager {
     }
 
     /**
-     * Deletes a request from the active requests map and rejects the wrapper promise
+     * Handles the completion of a request by deleting it from the active requests map and resolving/rejecting the wrapper promise
      * @param {string} requestId - The unique identifier of the request
-     * @param {Function} rejectWrapper - The function to reject the wrapper promise
-     * @param {*} error - The error to reject the wrapper promise with; the wrapper is not rejected if null/undefined
+     * @param {boolean} condition - The condition to resolve/reject the wrapper promise
+     * @param {Function} wrapperPromise - The function to resolve/reject the wrapper promise
      * @private
      */
-    #_deleteRequest(requestId, rejectWrapper, error) {
+    #_handleRequestFinish(requestId, condition, wrapperPromise) {
         this.activeRequests.delete(requestId);
-        if (error !== null && error !== undefined) {
-            rejectWrapper(error);
-        }
-    }
-
-    /**
-     * Completes a request by deleting it from the active requests map and resolving the wrapper promise
-     * @param {string} requestId - The unique identifier of the request
-     * @param {Function} resolveWrapper - The function to resolve the wrapper promise
-     * @param {Promise} requestPromise - The request promise
-     * @param {boolean} isCancelled - Whether the request was cancelled
-     * @private
-     */
-    #_completeRequest(requestId, resolveWrapper, requestPromise, isCancelled) {
-        this.activeRequests.delete(requestId);
-        if (!isCancelled) {
-            resolveWrapper(requestPromise);
+        if (condition) {
+            wrapperPromise();
         }
     }
 
@@ -595,7 +604,7 @@ class RequestManager {
             try {
                 let req = requestPromise.then((result) => {
                     if (this.activeRequests.get(requestId) !== requestInfo) return;
-                    this.#_completeRequest(requestId, resolveWrapper, result, requestInfo.isCancelled);
+                    this.#_handleRequestFinish(requestId, !requestInfo.isCancelled, () => resolveWrapper(result));
                 });
                 if (req.catch)
                     req.catch((error) => {
@@ -613,7 +622,7 @@ class RequestManager {
                     return;
                 }
                 // Only delete if this is still the active request
-                scope.#_deleteRequest(requestId, rejectWrapper, error);
+                scope.#_handleRequestFinish(requestId, scope.#_hasValue(error), () => rejectWrapper(error));
             }
         } else {
             // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
@@ -626,7 +635,7 @@ class RequestManager {
                         : null));
             const finish = () => {
                 if (this.activeRequests.get(requestId) !== requestInfo) return;
-                this.#_completeRequest(requestId, resolveWrapper, requestPromise, requestInfo.isCancelled);
+                this.#_handleRequestFinish(requestId, !requestInfo.isCancelled, () => resolveWrapper(requestPromise));
             };
             if (xhr && typeof xhr.addEventListener === 'function') {
                 xhr.addEventListener('loadend', finish);

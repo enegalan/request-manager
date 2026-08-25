@@ -70,6 +70,8 @@ requestManager.fetch('/api/feed', { noCancel: true }); // never cancelled
         - [`getRequestId(url, options)`](#getrequestidurl-options)
         - [`cancel(requestId)`](#cancelrequestid)
         - [`cancelAll()`](#cancelall)
+        - [`getActiveRequests()`](#getactiverequests)
+        - [`getActiveRequest(requestId)`](#getactiverequestrequestid)
         - [`isActive(requestId)`](#isactiverequestid)
         - [`getActiveCount()`](#getactivecount)
         - [`clear()`](#clear)
@@ -680,6 +682,40 @@ Cancels a specific request by its identifier.
 Cancels all active requests.
 
 **Returns:** The number of requests that were cancelled
+
+### `getActiveRequests()`
+
+Returns the live `Map` of in-flight requests, keyed by request identifier. Mutations on the returned map affect the manager; use `getActiveRequest(requestId)` for lookups.
+
+**Returns:** `Map<string, ActiveRequest>`
+
+**Example:**
+
+```javascript
+for (const [id, entry] of requestManager.getActiveRequests()) {
+    console.log(id, entry.abortController);
+}
+```
+
+### `getActiveRequest(requestId)`
+
+Returns the in-flight request entry for an identifier, or `undefined` if it is not active.
+
+**Parameters:**
+
+- `requestId` (string): The unique identifier of the request
+
+**Returns:** `ActiveRequest | undefined`
+
+**Example:**
+
+```javascript
+const id = requestManager.getRequestId('/api/users');
+const entry = requestManager.getActiveRequest(id);
+if (entry) {
+    entry.abortController.abort();
+}
+```
 
 ### `isActive(requestId)`
 
