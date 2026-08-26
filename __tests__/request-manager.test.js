@@ -1425,6 +1425,92 @@ describe('RequestManager', () => {
             // The second request should complete
             expect(result).toBe('second');
         });
+
+        /**
+         * Builds an Ext.Ajax-like non-promise request object backed by a mock XHR.
+         * @param {{ status?: number, statusText?: string, aborted?: boolean }} [state]
+         */
+        function createExtLikeRequest(state = {}) {
+            const listeners = {};
+            const xhr = {
+                status: state.status ?? 200,
+                statusText: state.statusText ?? 'OK',
+                aborted: state.aborted ?? false,
+                addEventListener: (event, fn) => {
+                    if (!listeners[event]) listeners[event] = [];
+                    listeners[event].push(fn);
+                },
+                abort: () => {
+                    xhr.aborted = true;
+                    xhr.status = 0;
+                    (listeners.loadend || []).forEach((fn) => fn());
+                },
+            };
+            return {
+                xhr,
+                triggerLoadend: () => (listeners.loadend || []).forEach((fn) => fn()),
+            };
+        }
+
+        test('should resolve Ext.Ajax-like non-promise request on success', async () => {
+            const extRequest = createExtLikeRequest({ status: 200 });
+            const ajaxFunction = () => extRequest;
+
+            const resultPromise = requestManager.ajax(ajaxFunction, '/api/users');
+            extRequest.triggerLoadend();
+
+            await expect(resultPromise).resolves.toBe(extRequest);
+        });
+
+        test('should reject Ext.Ajax-like non-promise request on HTTP error', async () => {
+            const extRequest = createExtLikeRequest({ status: 500, statusText: 'Internal Server Error' });
+            const ajaxFunction = () => extRequest;
+
+            const resultPromise = requestManager.ajax(ajaxFunction, '/api/users');
+            extRequest.triggerLoadend();
+
+            await expect(resultPromise).rejects.toEqual({
+                message: 'Request failed with status 500',
+                status: 500,
+                statusText: 'Internal Server Error',
+                xhr: extRequest.xhr,
+            });
+        });
+
+        test('should reject Ext.Ajax-like non-promise request on network error', async () => {
+            const extRequest = createExtLikeRequest({ status: 0, statusText: '' });
+            const ajaxFunction = () => extRequest;
+
+            const resultPromise = requestManager.ajax(ajaxFunction, '/api/users');
+            extRequest.triggerLoadend();
+
+            await expect(resultPromise).rejects.toEqual({
+                message: 'Network error',
+                xhr: extRequest.xhr,
+            });
+        });
+
+        test('should keep Ext.Ajax-like request tracked until XHR finishes so duplicates can cancel it', async () => {
+            const first = createExtLikeRequest({ status: 200 });
+            const second = createExtLikeRequest({ status: 200 });
+            let callCount = 0;
+
+            const ajaxFunction = () => {
+                callCount++;
+                return callCount === 1 ? first : second;
+            };
+
+            const request1 = requestManager.ajax(ajaxFunction, '/api/users');
+            request1.catch(() => {});
+
+            expect(requestManager.isActive(requestManager.getRequestId('/api/users'))).toBe(true);
+
+            const resultPromise = requestManager.ajax(ajaxFunction, '/api/users');
+            expect(first.xhr.aborted).toBe(true);
+
+            second.triggerLoadend();
+            await expect(resultPromise).resolves.toBe(second);
+        });
     });
 
     describe('xhr() method', () => {
@@ -1438,13 +1524,44 @@ describe('RequestManager', () => {
             global.XMLHttpRequest = originalXMLHttpRequest;
         });
 
+        /**
+         * Minimal XHR mock compatible with #_request's loadend/timeout wrap.
+         * @param {object} [overrides]
+         */
+        function createXhrMock(overrides = {}) {
+            const listeners = {};
+            const xhr = {
+                open: () => {},
+                send: () => {},
+                setRequestHeader: () => {},
+                getAllResponseHeaders: () => '',
+                getResponseHeader: () => null,
+                status: 200,
+                statusText: 'OK',
+                response: '',
+                aborted: false,
+                addEventListener: (event, fn) => {
+                    if (!listeners[event]) listeners[event] = [];
+                    listeners[event].push(fn);
+                },
+                abort: () => {
+                    xhr.aborted = true;
+                    xhr.status = 0;
+                    (listeners.loadend || []).forEach((fn) => fn());
+                },
+                trigger: (event) => (listeners[event] || []).forEach((fn) => fn()),
+            };
+            Object.defineProperties(xhr, Object.getOwnPropertyDescriptors(overrides));
+            return xhr;
+        }
+
         test('should execute an XHR GET request', async () => {
             let openCalled = false;
             let sendCalled = false;
             let openArgs = null;
             let sendArgs = null;
 
-            const xhrMock = {
+            const xhrMock = createXhrMock({
                 open: (method, url, async) => {
                     openCalled = true;
                     openArgs = { method, url, async };
@@ -1453,28 +1570,19 @@ describe('RequestManager', () => {
                     sendCalled = true;
                     sendArgs = body;
                 },
-                setRequestHeader: () => {},
                 getAllResponseHeaders: () => 'Content-Type: application/json',
                 getResponseHeader: () => 'application/json',
-                responseText: '{"data":"success"}',
                 response: '{"data":"success"}',
                 status: 200,
                 statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const resultPromise = requestManager.xhr('/api/users');
-
-            // Simulate successful response
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
+            setTimeout(() => xhrMock.trigger('loadend'), 10);
 
             const result = await resultPromise;
 
@@ -1484,9 +1592,10 @@ describe('RequestManager', () => {
             expect(openArgs.async).toBe(true);
             expect(sendCalled).toBe(true);
             expect(sendArgs).toBe(null);
-            expect(result.data).toEqual({ data: 'success' });
+            expect(result).toBe(xhrMock);
             expect(result.status).toBe(200);
             expect(result.statusText).toBe('OK');
+            expect(result.response).toBe('{"data":"success"}');
         });
 
         test('should execute an XHR POST request with options', async () => {
@@ -1497,7 +1606,7 @@ describe('RequestManager', () => {
             let openArgs = null;
             let sendArgs = null;
 
-            const xhrMock = {
+            const xhrMock = createXhrMock({
                 open: (method, url, async) => {
                     openCalled = true;
                     openArgs = { method, url, async };
@@ -1512,30 +1621,21 @@ describe('RequestManager', () => {
                 },
                 getAllResponseHeaders: () => 'Content-Type: application/json',
                 getResponseHeader: () => 'application/json',
-                responseText: '{"data":"created"}',
                 response: '{"data":"created"}',
                 status: 201,
                 statusText: 'Created',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
-            const options = {
+            const resultPromise = requestManager.xhr('/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: 'John' }),
-            };
-
-            const resultPromise = requestManager.xhr('/api/users', options);
-
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
+            });
+            setTimeout(() => xhrMock.trigger('loadend'), 10);
 
             const result = await resultPromise;
 
@@ -1546,33 +1646,23 @@ describe('RequestManager', () => {
             expect(setRequestHeaderArgs).toContainEqual({ header: 'Content-Type', value: 'application/json' });
             expect(sendCalled).toBe(true);
             expect(sendArgs).toBe(JSON.stringify({ name: 'John' }));
-            expect(result.data).toEqual({ data: 'created' });
+            expect(result).toBe(xhrMock);
             expect(result.status).toBe(201);
+            expect(result.response).toBe('{"data":"created"}');
         });
 
         test('should handle XHR errors', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
+            const xhrMock = createXhrMock({
                 status: 500,
                 statusText: 'Internal Server Error',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const resultPromise = requestManager.xhr('/api/users');
-
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
+            setTimeout(() => xhrMock.trigger('loadend'), 10);
 
             await expect(resultPromise).rejects.toEqual({
                 message: 'Request failed with status 500',
@@ -1583,26 +1673,14 @@ describe('RequestManager', () => {
         });
 
         test('should handle XHR network errors', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            const xhrMock = createXhrMock({ status: 0, statusText: '' });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
             const resultPromise = requestManager.xhr('/api/users');
-
-            setTimeout(() => {
-                xhrMock.onerror();
-            }, 10);
+            setTimeout(() => xhrMock.trigger('loadend'), 10);
 
             await expect(resultPromise).rejects.toEqual({
                 message: 'Network error',
@@ -1611,28 +1689,16 @@ describe('RequestManager', () => {
         });
 
         test('should handle XHR timeout', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
-                timeout: 0,
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            const xhrMock = createXhrMock({ status: 0, statusText: '', timeout: 0 });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
             };
 
-            const resultPromise = requestManager.xhr('/api/users', {
-                timeout: 1000,
-            });
-
+            const resultPromise = requestManager.xhr('/api/users', { timeout: 1000 });
             setTimeout(() => {
-                xhrMock.ontimeout();
+                xhrMock.trigger('timeout');
+                xhrMock.trigger('loadend');
             }, 10);
 
             await expect(resultPromise).rejects.toEqual({
@@ -1643,20 +1709,14 @@ describe('RequestManager', () => {
 
         test('should cancel XHR request when aborted', async () => {
             let abortCalled = false;
-
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
+            const xhrMock = createXhrMock({
                 abort: () => {
                     abortCalled = true;
+                    xhrMock.aborted = true;
+                    xhrMock.status = 0;
+                    xhrMock.trigger('loadend');
                 },
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
@@ -1666,13 +1726,10 @@ describe('RequestManager', () => {
             const resultPromise = requestManager.xhr('/api/users', {
                 abortController: controller,
             });
+            resultPromise.catch(() => {});
 
-            // Wait for XHR to be set up
             await new Promise((resolve) => setTimeout(resolve, 10));
-
             controller.abort();
-
-            // Wait a bit for abort to be processed
             await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(abortCalled).toBe(true);
@@ -1681,38 +1738,21 @@ describe('RequestManager', () => {
         test('should use requestKey for cancellation grouping', async () => {
             let abortCalled = false;
 
-            const xhrMock1 = {
-                open: () => {},
-                send: () => {},
+            const xhrMock1 = createXhrMock({
                 abort: () => {
                     abortCalled = true;
+                    xhrMock1.aborted = true;
+                    xhrMock1.status = 0;
+                    xhrMock1.trigger('loadend');
                 },
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
                 getResponseHeader: () => 'application/json',
-                responseText: '{"data":"first"}',
                 response: '{"data":"first"}',
-                status: 200,
-                statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
-            const xhrMock2 = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
+            const xhrMock2 = createXhrMock({
                 getResponseHeader: () => 'application/json',
-                responseText: '{"data":"second"}',
                 response: '{"data":"second"}',
-                status: 200,
-                statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
             let xhrCallCount = 0;
             global.XMLHttpRequest = function () {
@@ -1725,34 +1765,26 @@ describe('RequestManager', () => {
                 abortController: controller1,
                 requestKey: 'get-users',
             });
-            request1.catch(() => {}); // Handle cancellation
+            request1.catch(() => {});
 
             await new Promise((resolve) => setTimeout(resolve, 10));
 
             const resultPromise = requestManager.xhr('/api/users?page=2', {
                 requestKey: 'get-users',
             });
-
-            setTimeout(() => {
-                xhrMock2.onload();
-            }, 10);
+            setTimeout(() => xhrMock2.trigger('loadend'), 10);
 
             const result = await resultPromise;
 
             expect(abortCalled).toBe(true);
             expect(controller1.signal.aborted).toBe(true);
-            expect(result.data).toEqual({ data: 'second' });
+            expect(result).toBe(xhrMock2);
+            expect(result.response).toBe('{"data":"second"}');
         });
 
         test('should handle responseType option', async () => {
             let responseTypeSet = '';
-
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
+            const xhrMock = createXhrMock({
                 get responseType() {
                     return responseTypeSet;
                 },
@@ -1760,12 +1792,7 @@ describe('RequestManager', () => {
                     responseTypeSet = value;
                 },
                 response: 'binary-data',
-                status: 200,
-                statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
+            });
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
@@ -1774,100 +1801,17 @@ describe('RequestManager', () => {
             const resultPromise = requestManager.xhr('/api/users', {
                 responseType: 'arraybuffer',
             });
-
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
+            setTimeout(() => xhrMock.trigger('loadend'), 10);
 
             const result = await resultPromise;
 
             expect(responseTypeSet).toBe('arraybuffer');
-            expect(result.data).toBe('binary-data');
-        });
-
-        test('should resolve with parsed response when responseType is json without touching responseText', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => 'application/json',
-                get responseText() {
-                    // Browsers throw InvalidStateError when reading responseText
-                    // while responseType is not '' or 'text'
-                    throw new Error('InvalidStateError');
-                },
-                response: { data: 'parsed-by-browser' },
-                status: 200,
-                statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
-
-            global.XMLHttpRequest = function () {
-                return xhrMock;
-            };
-
-            const resultPromise = requestManager.xhr('/api/users', {
-                responseType: 'json',
-            });
-
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
-
-            const result = await resultPromise;
-
-            expect(result.data).toEqual({ data: 'parsed-by-browser' });
-        });
-
-        test('should fall back to raw text when JSON parsing fails', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => 'application/json',
-                responseText: '{invalid-json}',
-                response: '{invalid-json}',
-                status: 200,
-                statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-            };
-
-            global.XMLHttpRequest = function () {
-                return xhrMock;
-            };
-
-            const resultPromise = requestManager.xhr('/api/users');
-
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
-
-            const result = await resultPromise;
-
-            expect(result.data).toBe('{invalid-json}');
+            expect(result).toBe(xhrMock);
+            expect(result.response).toBe('binary-data');
         });
 
         test('should reject and clean up when the user aborts the signal manually', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                abort: function () {
-                    if (typeof this.onabort === 'function') this.onabort();
-                },
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-                onabort: null,
-            };
+            const xhrMock = createXhrMock();
 
             global.XMLHttpRequest = function () {
                 return xhrMock;
@@ -1888,51 +1832,6 @@ describe('RequestManager', () => {
                 xhr: xhrMock,
             });
             expect(requestManager.getActiveCount()).toBe(0);
-        });
-
-        test('should detach the abort listener once the request settles', async () => {
-            const xhrMock = {
-                open: () => {},
-                send: () => {},
-                setRequestHeader: () => {},
-                getAllResponseHeaders: () => '',
-                getResponseHeader: () => null,
-                responseText: '{"data":"success"}',
-                response: '{"data":"success"}',
-                status: 200,
-                statusText: 'OK',
-                onload: null,
-                onerror: null,
-                ontimeout: null,
-                onabort: null,
-            };
-
-            global.XMLHttpRequest = function () {
-                return xhrMock;
-            };
-
-            const controller = new AbortController();
-            const signal = controller.signal;
-            const originalRemoveEventListener = signal.removeEventListener.bind(signal);
-            let removeArgs = null;
-            signal.removeEventListener = (...args) => {
-                if (!removeArgs) removeArgs = args;
-                return originalRemoveEventListener(...args);
-            };
-
-            const resultPromise = requestManager.xhr('/api/detach-listener', {
-                abortController: controller,
-            });
-
-            setTimeout(() => {
-                xhrMock.onload();
-            }, 10);
-
-            await resultPromise;
-
-            expect(removeArgs[0]).toBe('abort');
-            expect(typeof removeArgs[1]).toBe('function');
-            signal.removeEventListener = originalRemoveEventListener;
         });
     });
 

@@ -1,3 +1,15 @@
+## [1.1.6] - 2026-08-26
+
+### Changed
+
+- Non-promise clients (Ext.Ajax request objects, raw `XMLHttpRequest`) are wrapped inside `#_request` so they share the same settle contract as thenables: resolve on success, reject on HTTP error, network error, timeout, or abort.
+- `xhr()` only opens/sends the request and returns the raw `XMLHttpRequest`. Settling (including timeout) is handled by `#_request`; body parsing is left to the caller.
+- Removed the `XhrResponse` type. `xhr()` is typed as `Promise<XMLHttpRequest>`.
+
+### Fixed
+
+- Ext.Ajax / non-promise ajax results no longer always resolve the wrapper promise on `loadend` (including 4xx/5xx and network failures).
+
 ## [1.1.5] - 2026-08-25
 
 ### Changed

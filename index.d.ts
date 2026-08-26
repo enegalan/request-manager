@@ -203,36 +203,6 @@ export interface XhrOptions extends BaseRequestOptions {
 }
 
 /**
- * Response interface from the xhr() method
- */
-export interface XhrResponse<T = any> {
-    /**
-     * The response data (automatically parsed as JSON if Content-Type is application/json)
-     */
-    data: T;
-
-    /**
-     * HTTP status code
-     */
-    status: number;
-
-    /**
-     * HTTP status text
-     */
-    statusText: string;
-
-    /**
-     * Response headers string
-     */
-    headers: string;
-
-    /**
-     * The XMLHttpRequest instance
-     */
-    xhr: XMLHttpRequest;
-}
-
-/**
  * Options interface passed to the request function callback
  */
 export interface RequestFunctionOptions {
@@ -479,7 +449,7 @@ declare class RequestManager {
      *   body: JSON.stringify({ name: 'John' })
      * });
      */
-    xhr<T = any>(url: string, options?: XhrOptions): Promise<XhrResponse<T>>;
+    xhr(url: string, options?: XhrOptions): Promise<XMLHttpRequest>;
 
     /**
      * Returns the request ID that RequestManager would assign for a URL and options.

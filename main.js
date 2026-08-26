@@ -229,7 +229,7 @@ class RequestManager {
      * Executes an HTTP request using XMLHttpRequest, cancelling any previous request with the same identifier.
      * @param {string} url - The URL to request
      * @param {import('./index.d.ts').XhrOptions} options - Optional configuration
-     * @returns {Promise<import('./index.d.ts').XhrResponse>} A Promise that resolves/rejects based on the most recent request
+     * @returns {Promise<XMLHttpRequest>} A Promise that resolves with the XHR instance (or rejects on error)
      * @example
      * // Simple GET request
      * requestManager.xhr('/api/users');
@@ -247,55 +247,11 @@ class RequestManager {
      * });
      */
     xhr(url, options = {}) {
-        /** @type {import('./index.d.ts').RequestFunction<import('./index.d.ts').XhrResponse>} */
-        const xhrFunction = ({ options: fetchOptions }) => {
-            // Create XMLHttpRequest
-            const xhr = new XMLHttpRequest();
-            const method = (options.method || 'GET').toUpperCase();
-            // Create a promise that wraps the XHR request
-            return new Promise((resolve, reject) => {
-                const abortListener = () => xhr.abort();
-                const detachAbortListener = () => {
-                    fetchOptions.signal?.removeEventListener('abort', abortListener);
-                };
-                const fail = (payload) => {
-                    detachAbortListener();
-                    reject({ xhr, ...payload });
-                };
-
-                xhr.onload = () => {
-                    if (xhr.status < 200 || xhr.status >= 300) {
-                        fail({
-                            message: `Request failed with status ${xhr.status}`,
-                            status: xhr.status,
-                            statusText: xhr.statusText,
-                        });
-                        return;
-                    }
-                    detachAbortListener();
-                    let response = xhr.response;
-                    if (
-                        options.responseType === 'json' ||
-                        ((!options.responseType || options.responseType === 'text') &&
-                            xhr.getResponseHeader('Content-Type')?.includes('application/json') &&
-                            typeof response === 'string')
-                    ) {
-                        try {
-                            response = JSON.parse(response);
-                        } catch {}
-                    }
-                    resolve({
-                        data: response,
-                        status: xhr.status,
-                        statusText: xhr.statusText,
-                        headers: xhr.getAllResponseHeaders(),
-                        xhr,
-                    });
-                };
-                xhr.onerror = () => fail({ message: 'Network error' });
-                xhr.ontimeout = () => fail({ message: 'Request timeout' });
-                xhr.onabort = () => reject({ message: 'Request was cancelled', xhr });
-
+        return this.#_request(
+            this.getRequestId(url, options),
+            () => {
+                const xhr = new XMLHttpRequest();
+                const method = (options.method || 'GET').toUpperCase();
                 xhr.open(method, url, true);
                 if (options.responseType) xhr.responseType = options.responseType;
                 if (options.withCredentials !== undefined) xhr.withCredentials = options.withCredentials;
@@ -305,11 +261,11 @@ class RequestManager {
                         xhr.setRequestHeader(key, options.headers[key]);
                     });
                 }
-                fetchOptions.signal?.addEventListener('abort', abortListener);
                 xhr.send(options.body || null);
-            });
-        };
-        return this.#_request(this.getRequestId(url, options), xhrFunction, options);
+                return xhr;
+            },
+            options
+        );
     }
 
     /**
@@ -361,29 +317,29 @@ class RequestManager {
      */
     cancel(requestId) {
         /** @type {import('./index.d.ts').ActiveRequest|undefined} */
-        const requestInfo = this.activeRequests.get(requestId);
-        if (!requestInfo) return false;
+        const request = this.getActiveRequest(requestId);
+        if (!request) return false;
 
-        requestInfo.isCancelled = true; // Mark as cancelled
+        request.isCancelled = true; // Mark as cancelled
 
         // Try to abort using AbortController (for fetch)
-        if (requestInfo.abortController && !requestInfo.abortController.signal.aborted) {
+        if (request.abortController && !request.abortController.signal.aborted) {
             try {
-                requestInfo.abortController.abort('Request was cancelled');
+                request.abortController.abort('Request was cancelled');
             } catch (error) {}
         }
 
         // Try to cancel using cancel token/function (for axios and others)
-        if (requestInfo.cancelToken) {
+        if (request.cancelToken) {
             try {
-                if (typeof requestInfo.cancelToken === 'function') requestInfo.cancelToken();
-                else if (requestInfo.cancelToken.cancel) requestInfo.cancelToken.cancel();
+                if (typeof request.cancelToken === 'function') request.cancelToken();
+                else if (request.cancelToken.cancel) request.cancelToken.cancel();
             } catch (error) {}
         }
 
         // Reject the wrapper promise
         const error = this.getOptions().verbose ? new Error(`Request ${requestId} was cancelled`) : null;
-        this.#_handleRequestFinish(requestId, error != null, () => requestInfo.rejectWrapper(error));
+        this.#_handleRequestFinish(requestId, error != null, () => request.rejectWrapper(error));
         return true;
     }
 
@@ -409,7 +365,7 @@ class RequestManager {
      * @returns {number} The number of requests that were cancelled
      */
     cancelAll() {
-        const requestIds = Array.from(this.activeRequests.keys());
+        const requestIds = Array.from(this.getActiveRequests().keys());
         let cancelledCount = 0;
         requestIds.forEach((requestId) => {
             if (this.cancel(requestId)) cancelledCount++;
@@ -500,7 +456,7 @@ class RequestManager {
      * @private
      */
     #_handleRequestFinish(requestId, condition, wrapperPromise) {
-        this.activeRequests.delete(requestId);
+        this.getActiveRequests().delete(requestId);
         if (condition) {
             wrapperPromise();
         }
@@ -540,6 +496,39 @@ class RequestManager {
         // Link the request object's abort method (Ext.Ajax, XHR, etc.) to the cancellation signal
         this.addAbortListener(this.#_resolveAbortMethod(requestPromise), abortController.signal);
 
+        // Ext.Ajax / raw XHR: wrap so settle matches thenable clients (resolve ok, reject on error)
+        if (!requestPromise || typeof requestPromise.then !== 'function') {
+            const raw = requestPromise;
+            const xhr =
+                raw?.xhr ||
+                (typeof XMLHttpRequest !== 'undefined' && raw instanceof XMLHttpRequest ? raw : null) ||
+                (typeof raw?.addEventListener === 'function' && typeof raw?.abort === 'function' ? raw : null);
+            requestPromise = new Promise((resolve, reject) => {
+                if (!xhr || typeof xhr.addEventListener !== 'function') {
+                    resolve(raw);
+                    return;
+                }
+                let timedOut = false;
+                xhr.addEventListener('timeout', () => {
+                    timedOut = true;
+                });
+                xhr.addEventListener('loadend', () => {
+                    if (xhr.aborted) return reject({ message: 'Request was cancelled', xhr });
+                    if (timedOut) return reject({ message: 'Request timeout', xhr });
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        if (xhr.status === 0) return reject({ message: 'Network error', xhr });
+                        return reject({
+                            message: `Request failed with status ${xhr.status}`,
+                            status: xhr.status,
+                            statusText: xhr.statusText,
+                            xhr,
+                        });
+                    }
+                    resolve(raw);
+                });
+            });
+        }
+
         // Cancel previous request with the same identifier if it exists
         if (!options.noCancel) this.cancel(requestId);
 
@@ -553,7 +542,7 @@ class RequestManager {
         /**
          * @type {import('./index.d.ts').ActiveRequest}
          */
-        const requestInfo = {
+        const request = {
             promise: requestPromise,
             abortController: abortController,
             cancelToken: options.cancelToken || null,
@@ -562,51 +551,31 @@ class RequestManager {
             isCancelled: false,
         };
 
-        this.activeRequests.set(requestId, requestInfo);
+        this.getActiveRequests().set(requestId, request);
 
         // Handle request promise completion
-        if (requestPromise && typeof requestPromise.then === 'function') {
-            try {
-                let req = requestPromise.then((result) => {
-                    if (this.activeRequests.get(requestId) !== requestInfo) return;
-                    this.#_handleRequestFinish(requestId, !requestInfo.isCancelled, () => resolveWrapper(result));
+        try {
+            let req = requestPromise.then((result) => {
+                if (this.getActiveRequest(requestId) !== request) return;
+                this.#_handleRequestFinish(requestId, !request.isCancelled, () => resolveWrapper(result));
+            });
+            if (req.catch)
+                req.catch((error) => {
+                    onError(this, error);
                 });
-                if (req.catch)
-                    req.catch((error) => {
-                        onError(this, error);
-                    });
-            } catch (error) {
-                onError(this, error);
+        } catch (error) {
+            onError(this, error);
+        }
+        function onError(scope, error) {
+            // Check if this request is still the active one, or if it was cancelled
+            if (scope.getActiveRequest(requestId) !== request) return;
+            if (request.isCancelled) {
+                // Already cancelled: let cancel() handle cleanup and reject the wrapper promise
+                scope.cancel(requestId);
+                return;
             }
-            function onError(scope, error) {
-                // Check if this requestInfo is still the active one, or if it was cancelled
-                if (scope.activeRequests.get(requestId) !== requestInfo) return;
-                if (requestInfo.isCancelled) {
-                    // Already cancelled: let cancel() handle cleanup and reject the wrapper promise
-                    scope.cancel(requestId);
-                    return;
-                }
-                // Only delete if this is still the active request
-                scope.#_handleRequestFinish(requestId, error != null, () => rejectWrapper(error));
-            }
-        } else {
-            // Non-promise (Ext.Ajax request object, raw XHR, etc.). Keep tracked until the
-            // underlying XHR finishes so a later duplicate can still cancel it.
-            const xhr =
-                requestPromise &&
-                (requestPromise.xhr ||
-                    (typeof XMLHttpRequest !== 'undefined' && requestPromise instanceof XMLHttpRequest
-                        ? requestPromise
-                        : null));
-            const finish = () => {
-                if (this.activeRequests.get(requestId) !== requestInfo) return;
-                this.#_handleRequestFinish(requestId, !requestInfo.isCancelled, () => resolveWrapper(requestPromise));
-            };
-            if (xhr && typeof xhr.addEventListener === 'function') {
-                xhr.addEventListener('loadend', finish);
-            } else {
-                setTimeout(finish, 0);
-            }
+            // Only delete if this is still the active request
+            scope.#_handleRequestFinish(requestId, error != null, () => rejectWrapper(error));
         }
         return wrapperPromise;
     }

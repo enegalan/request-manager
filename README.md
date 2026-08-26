@@ -129,12 +129,13 @@ const { RequestManager } = require('@enegalan/request-manager');
 Full TypeScript support is included. Types are automatically resolved:
 
 ```typescript
-import RequestManager, { RequestOptions, XhrResponse } from '@enegalan/request-manager';
+import RequestManager, { XhrOptions } from '@enegalan/request-manager';
 
 const requestManager = new RequestManager({ verbose: true });
 
-const response: Response = await requestManager.fetch('/api/users');
-const xhrResult: XhrResponse<{ name: string }> = await requestManager.xhr('/api/user/1');
+const options: XhrOptions = { method: 'GET', responseType: 'json' };
+const xhr = await requestManager.xhr('/api/user/1', options);
+const user = xhr.response; // caller reads/parses the XHR
 ```
 
 ### Which method should I use?
@@ -603,13 +604,7 @@ Executes an HTTP request using XMLHttpRequest, cancelling any previous request w
     - `includeQuery` (boolean): If true, keeps the query string in the URL-based request ID
     - `includeMethod` (boolean): If true (default), the HTTP method is part of the URL-based request ID
 
-**Returns:** Promise that resolves/rejects based on the most recent request. The resolved value is an object with:
-
-- `data`: The response data (automatically parsed as JSON if Content-Type is application/json)
-- `status`: HTTP status code
-- `statusText`: HTTP status text
-- `headers`: Response headers string
-- `xhr`: The XMLHttpRequest instance
+**Returns:** Promise that resolves with the `XMLHttpRequest` instance (or rejects on HTTP/network/timeout/abort). Parsing the body is left to the caller (`xhr.response`, `xhr.responseText`, etc.).
 
 **Note:** If you abort the request yourself (via your own `AbortController` or `xhr.abort()`), the returned promise rejects with `{ message: 'Request was cancelled', xhr }` and the manager removes the entry from its active requests.
 
@@ -623,7 +618,7 @@ const requestManager = new RequestManager();
 // Simple GET request
 requestManager
     .xhr('/api/users')
-    .then((response) => console.log(response.data))
+    .then((xhr) => console.log(xhr.responseText))
     .catch((error) => console.error(error));
 
 // POST request with options
@@ -634,7 +629,7 @@ requestManager
         body: JSON.stringify({ name: 'John' }),
         responseType: 'json',
     })
-    .then((response) => console.log(response.data));
+    .then((xhr) => console.log(xhr.response));
 ```
 
 ### `getRequestId(url, options)`
